@@ -53,7 +53,7 @@ kraken --version
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/dog-intel.git
+git clone https://github.com/ra1nb93/dog-intel.git
 cd dog-intel
 
 # 2. Start the API server
@@ -170,6 +170,12 @@ dog-intel/
 This project was built as a submission for the **[Kraken CLI Agent Zero Promotion](https://support.kraken.com/articles/agent-zero-promotion)** — a $25,000 competition for the best builds using Kraken CLI.
 
 The goal: give the **$DOG Army** a free, open-source intelligence tool that runs locally, pulls live data directly from Kraken, and requires zero API keys for public market data.
+
+---
+
+## Submission
+
+🐦 [X post](https://x.com/Ra1nBlack/status/2058219061142589483)
 
 ---
 
