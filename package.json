@@ -1,1 +1,16 @@
-{"type":"module","name":"dog-intel"}
+{
+  "name": "dog-intel",
+  "version": "1.0.0",
+  "description": "Real-time intelligence dashboard for DOG•GO•TO•THE•MOON — powered by Kraken CLI",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "report": "node dog-intel.js",
+    "watch": "node dog-intel.js --watch"
+  },
+  "keywords": ["dog", "bitcoin", "runes", "kraken", "cli", "dashboard", "trading"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
