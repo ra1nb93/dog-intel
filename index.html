@@ -186,6 +186,39 @@
     footer{margin-top:40px;padding:16px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
     footer span{font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:0.1em;}
 
+
+    /* ── LIVE TRADING STYLES ── */
+    .mode-toggle{display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:14px;}
+    .mode-btn{padding:8px 20px;font-family:var(--display);font-size:14px;letter-spacing:0.08em;border:none;cursor:pointer;transition:all 0.2s;background:transparent;}
+    .mode-btn.active.paper{background:rgba(77,166,255,0.15);color:#4da6ff;}
+    .mode-btn.active.live{background:rgba(255,77,77,0.15);color:#ff4d4d;}
+    .mode-btn:not(.active){color:#555;}
+    .pair-toggle{display:flex;gap:6px;margin-bottom:14px;}
+    .pair-btn{padding:5px 14px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;border:1px solid var(--border2);border-radius:6px;cursor:pointer;background:transparent;color:#555;transition:all 0.2s;}
+    .pair-btn.active{background:rgba(245,166,35,0.12);color:var(--gold);border-color:rgba(245,166,35,0.3);}
+    .live-panel{background:rgba(255,77,77,0.04);border:1px solid rgba(255,77,77,0.2);border-radius:10px;padding:16px;margin-bottom:14px;}
+    .live-warning{font-family:var(--mono);font-size:10px;color:#ff4d4d;letter-spacing:0.1em;margin-bottom:12px;}
+    .live-credentials{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+    .cred-input{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--text);width:100%;outline:none;}
+    .cred-input:focus{border-color:rgba(255,77,77,0.4);}
+    .cred-input::placeholder{color:#333;}
+    .live-balance{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;}
+    .live-bal-cell{background:var(--bg3);border-radius:6px;padding:8px 12px;}
+    .live-bal-val{font-family:var(--display);font-size:16px;color:var(--text);}
+    .live-bal-label{font-family:var(--mono);font-size:8px;color:#555;letter-spacing:0.15em;margin-top:2px;}
+    .live-trade-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .btn-live-load{padding:9px;border-radius:7px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(77,166,255,0.12);color:#4da6ff;border:1px solid rgba(77,166,255,0.2);width:100%;}
+    .btn-live-buy{padding:9px;border-radius:7px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(61,220,132,0.12);color:#3ddc84;border:1px solid rgba(61,220,132,0.2);width:100%;}
+    .btn-live-sell{padding:9px;border-radius:7px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(255,77,77,0.12);color:#ff4d4d;border:1px solid rgba(255,77,77,0.2);width:100%;}
+    .btn-emergency{padding:9px;border-radius:7px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(255,77,77,0.2);color:#ff4d4d;border:1px solid rgba(255,77,77,0.4);width:100%;margin-top:6px;}
+    .confirm-modal{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;}
+    .confirm-box{background:var(--bg2);border:1px solid rgba(255,77,77,0.4);border-radius:12px;padding:24px;max-width:360px;width:90%;}
+    .confirm-title{font-family:var(--display);font-size:20px;color:#ff4d4d;margin-bottom:10px;}
+    .confirm-text{font-family:var(--mono);font-size:11px;color:#555;line-height:1.6;margin-bottom:16px;}
+    .confirm-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .btn-confirm{padding:10px;border:none;border-radius:7px;font-family:var(--display);font-size:14px;cursor:pointer;background:rgba(255,77,77,0.15);color:#ff4d4d;border:1px solid rgba(255,77,77,0.3);}
+    .btn-cancel-confirm{padding:10px;border:none;border-radius:7px;font-family:var(--display);font-size:14px;cursor:pointer;background:var(--bg3);color:#555;border:1px solid var(--border2);}
+
     /* ── MOBILE ── */
     @media(max-width:768px){
       header{padding:0 14px;}
@@ -267,6 +300,38 @@
       <div class="stat-cell"><div class="stat-val" id="statBuyPct">—</div><div class="stat-label">Buy Pressure</div></div>
     </div>
 
+    <!-- MODE + PAIR TOGGLE -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <div class="mode-toggle">
+        <button class="mode-btn active paper" id="btnModePaper" onclick="setMode('paper')">📄 PAPER</button>
+        <button class="mode-btn live" id="btnModeLive" onclick="setMode('live')">⚡ LIVE</button>
+      </div>
+      <div class="pair-toggle">
+        <button class="pair-btn active" id="btnPairUSD" onclick="setPair('USD')">DOG/USD</button>
+        <button class="pair-btn" id="btnPairEUR" onclick="setPair('EUR')">DOG/EUR</button>
+      </div>
+    </div>
+
+    <!-- LIVE TRADING PANEL (hidden by default) -->
+    <div class="live-panel" id="livePanel" style="display:none">
+      <div class="live-warning">⚠️ REAL MONEY MODE — Orders execute on your Kraken account. Not financial advice.</div>
+      <div class="live-credentials">
+        <input class="cred-input" id="credKey" type="password" placeholder="API Key" autocomplete="off" />
+        <input class="cred-input" id="credSecret" type="password" placeholder="API Secret" autocomplete="off" />
+      </div>
+      <div class="live-balance" id="liveBalance" style="display:none">
+        <div class="live-bal-cell"><div class="live-bal-val" id="liveDog">—</div><div class="live-bal-label">DOG</div></div>
+        <div class="live-bal-cell"><div class="live-bal-val" id="liveUsd">—</div><div class="live-bal-label">USD</div></div>
+        <div class="live-bal-cell"><div class="live-bal-val" id="liveEur">—</div><div class="live-bal-label">EUR</div></div>
+      </div>
+      <button class="btn-live-load" style="margin-bottom:8px" onclick="loadLiveBalance()">🔑 Load Balance</button>
+      <div class="live-trade-btns">
+        <button class="btn-live-buy" id="btnLiveBuy" onclick="confirmLiveTrade('buy')" disabled>📈 LIVE BUY</button>
+        <button class="btn-live-sell" id="btnLiveSell" onclick="confirmLiveTrade('sell')" disabled>📉 LIVE SELL</button>
+      </div>
+      <button class="btn-emergency" onclick="emergencyStop()">🛑 EMERGENCY STOP — Cancel All Orders</button>
+    </div>
+
     <!-- ── AGENT PANEL ── -->
     <div class="agent-panel">
 
@@ -286,14 +351,16 @@
               </svg>
               <div class="gauge-center">
                 <div class="gauge-score" id="gaugeScore">—</div>
-                <div class="gauge-label">PACK</div>
+                <div class="gauge-label" id="gaugeLabel">PACK</div>
               </div>
             </div>
             <div class="pack-sub">
               <div class="pack-sub-item"><div class="pack-sub-val" id="subLiq">—</div><div class="pack-sub-label">Liquidity</div></div>
               <div class="pack-sub-item"><div class="pack-sub-val" id="subMom">—</div><div class="pack-sub-label">Momentum</div></div>
               <div class="pack-sub-item"><div class="pack-sub-val" id="subRisk">—</div><div class="pack-sub-label">Risk</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subWhale">—</div><div class="pack-sub-label">Whale</div></div>
+              <div class="pack-sub-item"><div class="pack-sub-val" id="subWhale">—</div><div class="pack-sub-label">Whale Vol</div></div>
+              <div class="pack-sub-item"><div class="pack-sub-val" id="subRsi">—</div><div class="pack-sub-label">RSI(14)</div></div>
+              <div class="pack-sub-item"><div class="pack-sub-val" id="subEma">—</div><div class="pack-sub-label">EMA Cross</div></div>
             </div>
           </div>
         </div>
@@ -493,6 +560,7 @@ function render(d){
   document.getElementById('liveTime').textContent = new Date(d.timestamp).toLocaleTimeString();
 
   // Tape
+  const ind = packIndex?.indicators;
   document.getElementById('tapeInner').innerHTML = [
     `<span class="tape-item"><span class="tape-label">DOG/USD</span><span class="tape-val ${isUp?'up':'down'}">$${price.last.toFixed(6)}</span></span>`,
     `<span class="tape-item"><span class="tape-label">24H</span><span class="tape-val ${isUp?'up':'down'}">${isUp?'▲':'▼'} ${Math.abs(price.change24h)}%</span></span>`,
@@ -500,9 +568,12 @@ function render(d){
     `<span class="tape-item"><span class="tape-label">LOW</span><span class="tape-val down">$${price.low24h.toFixed(6)}</span></span>`,
     `<span class="tape-item"><span class="tape-label">VOL</span><span class="tape-val">${fmt(volume.total24h)} DOG</span></span>`,
     `<span class="tape-item"><span class="tape-label">PACK INDEX</span><span class="tape-val" style="color:${packIndex?.total>=65?'var(--green)':packIndex?.total>=40?'var(--gold)':'var(--red)'}">${packIndex?.total||'—'}/100</span></span>`,
+    ind?.rsi ? `<span class="tape-item"><span class="tape-label">RSI(14)</span><span class="tape-val" style="color:${ind.rsi<30?'var(--green)':ind.rsi>70?'var(--red)':'var(--text)'}">${ind.rsi.toFixed(0)}</span></span>` : '',
+    ind?.emaCross ? `<span class="tape-item"><span class="tape-label">EMA</span><span class="tape-val ${ind.emaCross==='GOLDEN'?'up':'down'}">${ind.emaCross}</span></span>` : '',
+    ind?.whaleBuyRatio !== null && ind?.whaleBuyRatio !== undefined ? `<span class="tape-item"><span class="tape-label">WHALE BUY%</span><span class="tape-val ${ind.whaleBuyRatio>50?'up':'down'}">${ind.whaleBuyRatio}%</span></span>` : '',
     `<span class="tape-item"><span class="tape-label">DECISION</span><span class="tape-val">${agent?.decision||'—'}</span></span>`,
     `<span class="tape-item"><span class="tape-label">P&L</span><span class="tape-val ${paper?.unrealized_pnl>=0?'up':'down'}">${paper?'$'+(paper.unrealized_pnl>=0?'+':'')+paper.unrealized_pnl.toFixed(2):'—'}</span></span>`,
-  ].join('');
+  ].filter(Boolean).join('');
 
   // Price hero
   document.getElementById('priceMain').textContent = `$${price.last.toFixed(6)}`;
@@ -530,6 +601,39 @@ function render(d){
     document.getElementById('subMom').textContent   = packIndex.momentum;
     document.getElementById('subRisk').textContent  = packIndex.risk;
     document.getElementById('subWhale').textContent = packIndex.whale;
+
+    const ind = packIndex.indicators;
+    if(ind){
+      // RSI con colore
+      const rsiEl = document.getElementById('subRsi');
+      rsiEl.textContent = ind.rsi ? ind.rsi.toFixed(0) : '—';
+      rsiEl.style.color = !ind.rsi ? 'var(--text)'
+        : ind.rsi < 30 ? 'var(--green)'
+        : ind.rsi > 70 ? 'var(--red)'
+        : 'var(--text)';
+
+      // EMA cross
+      const emaEl = document.getElementById('subEma');
+      if(ind.emaCross){
+        emaEl.textContent = ind.emaCross === 'GOLDEN' ? '🟢 GOLD' : '🔴 DEATH';
+        emaEl.style.color = ind.emaCross === 'GOLDEN' ? 'var(--green)' : 'var(--red)';
+      } else {
+        emaEl.textContent = '—';
+      }
+
+      // Whale vol ratio nel tape
+      if(ind.whaleBuyRatio !== null){
+        const wrt = document.getElementById('tapeInner');
+      }
+    }
+
+    // Trend arrow nel gauge
+    const trendMap = { UP: '↑', DOWN: '↓', FLAT: '→' };
+    const trendCol = { UP: 'var(--green)', DOWN: 'var(--red)', FLAT: 'var(--dim)' };
+    if(packIndex.trend){
+      document.getElementById('gaugeLabel').textContent  = `PACK ${trendMap[packIndex.trend]||''}`;
+      document.getElementById('gaugeLabel').style.color  = trendCol[packIndex.trend] || 'var(--dim)';
+    }
   }
 
   // Agent Decision
@@ -634,13 +738,129 @@ function setError(){
 
 async function fetchData(){
   try{
-    const res  = await fetch(`${API}/api/report`);
+    const res  = await fetch(`${API}/api/report?pair=${currentPair}`);
     if(!res.ok) throw new Error('bad response');
     render(await res.json());
     fetchPaperHistory();
   } catch(e){
     console.error('Fetch failed:', e);
     setError();
+  }
+}
+
+
+// ── TRADING MODE STATE ──
+let currentMode = 'paper';
+let currentPair = 'USD';
+let pendingTradeAction = null;
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('btnModePaper').className = 'mode-btn' + (mode==='paper' ? ' active paper' : '');
+  document.getElementById('btnModeLive').className  = 'mode-btn' + (mode==='live'  ? ' active live'  : '');
+  document.getElementById('livePanel').style.display = mode === 'live' ? 'block' : 'none';
+  // Show/hide paper vs live buttons in agent panel
+  document.getElementById('btnBuy').style.display  = mode === 'paper' ? '' : 'none';
+  document.getElementById('btnSell').style.display = mode === 'paper' ? '' : 'none';
+}
+
+function setPair(pair) {
+  currentPair = pair;
+  document.getElementById('btnPairUSD').className = 'pair-btn' + (pair==='USD' ? ' active' : '');
+  document.getElementById('btnPairEUR').className = 'pair-btn' + (pair==='EUR' ? ' active' : '');
+  cache_ts = 0;
+  fetchData();
+}
+
+// ── LIVE TRADING ──
+function getCredentials() {
+  return {
+    apiKey:    document.getElementById('credKey').value.trim(),
+    apiSecret: document.getElementById('credSecret').value.trim(),
+  };
+}
+
+async function loadLiveBalance() {
+  const creds = getCredentials();
+  if (!creds.apiKey || !creds.apiSecret) {
+    showNotif('❌ Enter API Key and Secret first', 'error');
+    return;
+  }
+  try {
+    const res  = await fetch(`${API}/api/live/balance`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(creds),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('liveBalance').style.display = 'grid';
+    document.getElementById('liveDog').textContent = fmt(data.dog);
+    document.getElementById('liveUsd').textContent = '$' + data.usd.toFixed(2);
+    document.getElementById('liveEur').textContent = '€' + data.eur.toFixed(2);
+    document.getElementById('btnLiveBuy').disabled  = false;
+    document.getElementById('btnLiveSell').disabled = data.dog <= 0;
+    showNotif('✅ Balance loaded', 'success');
+  } catch(e) {
+    showNotif('❌ ' + e.message, 'error');
+  }
+}
+
+function confirmLiveTrade(action) {
+  pendingTradeAction = action;
+  const modal = document.createElement('div');
+  modal.className = 'confirm-modal';
+  modal.id = 'confirmModal';
+  modal.innerHTML = `
+    <div class="confirm-box">
+      <div class="confirm-title">⚠️ REAL MONEY</div>
+      <div class="confirm-text">
+        You are about to execute a <strong style="color:${action==='buy'?'#3ddc84':'#ff4d4d'}">${action.toUpperCase()}</strong> order on your real Kraken account.<br><br>
+        • Max size: 20% of your DOG balance<br>
+        • Dead man switch: orders cancel after 60s<br>
+        • This action is <strong>irreversible</strong><br><br>
+        Are you sure?
+      </div>
+      <div class="confirm-btns">
+        <button class="btn-confirm" onclick="executeLiveTrade()">CONFIRM ${action.toUpperCase()}</button>
+        <button class="btn-cancel-confirm" onclick="document.getElementById('confirmModal').remove()">CANCEL</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function executeLiveTrade() {
+  document.getElementById('confirmModal')?.remove();
+  const action = pendingTradeAction;
+  const creds  = getCredentials();
+  try {
+    const res  = await fetch(`${API}/api/live/${action}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ ...creds, confirmed: true, pair: currentPair }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showNotif(`✅ LIVE ${action.toUpperCase()} executed — ${fmt(data.volume)} DOG`, 'success');
+    loadLiveBalance();
+  } catch(e) {
+    showNotif('❌ ' + e.message, 'error');
+  }
+}
+
+async function emergencyStop() {
+  if (!confirm('EMERGENCY STOP: Cancel ALL open orders on your Kraken account?')) return;
+  const creds = getCredentials();
+  try {
+    const res  = await fetch(`${API}/api/live/cancel-all`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(creds),
+    });
+    const data = await res.json();
+    showNotif('🛑 ' + (data.message || 'All orders cancelled'), 'success');
+  } catch(e) {
+    showNotif('❌ ' + e.message, 'error');
   }
 }
 
