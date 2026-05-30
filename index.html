@@ -306,30 +306,52 @@
         <button class="mode-btn active paper" id="btnModePaper" onclick="setMode('paper')">📄 PAPER</button>
         <button class="mode-btn live" id="btnModeLive" onclick="setMode('live')">⚡ LIVE</button>
       </div>
-      <div class="pair-toggle">
-        <button class="pair-btn active" id="btnPairUSD" onclick="setPair('USD')">DOG/USD</button>
-        <button class="pair-btn" id="btnPairEUR" onclick="setPair('EUR')">DOG/EUR</button>
-      </div>
+
     </div>
 
-    <!-- LIVE TRADING PANEL (hidden by default) -->
+    <!-- LIVE PORTFOLIO PANEL (hidden by default) -->
     <div class="live-panel" id="livePanel" style="display:none">
-      <div class="live-warning">⚠️ REAL MONEY MODE — Orders execute on your Kraken account. Not financial advice.</div>
+      <div class="live-warning">🔑 Connect your Kraken account to monitor your real DOG position</div>
       <div class="live-credentials">
-        <input class="cred-input" id="credKey" type="password" placeholder="API Key" autocomplete="off" />
+        <input class="cred-input" id="credKey" type="password" placeholder="API Key (Query Funds permission)" autocomplete="off" />
         <input class="cred-input" id="credSecret" type="password" placeholder="API Secret" autocomplete="off" />
       </div>
-      <div class="live-balance" id="liveBalance" style="display:none">
-        <div class="live-bal-cell"><div class="live-bal-val" id="liveDog">—</div><div class="live-bal-label">DOG</div></div>
-        <div class="live-bal-cell"><div class="live-bal-val" id="liveUsd">—</div><div class="live-bal-label">USD</div></div>
-        <div class="live-bal-cell"><div class="live-bal-val" id="liveEur">—</div><div class="live-bal-label">EUR</div></div>
+      <button class="btn-live-load" style="margin-bottom:12px;width:100%" onclick="loadLivePortfolio()">🔑 Connect & Load Portfolio</button>
+
+      <!-- Portfolio data (hidden until loaded) -->
+      <div id="livePortfolioData" style="display:none">
+
+        <!-- DOG Position -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
+          <div class="live-bal-cell">
+            <div class="live-bal-val" id="liveDogBal">—</div>
+            <div class="live-bal-label">DOG Balance</div>
+          </div>
+          <div class="live-bal-cell">
+            <div class="live-bal-val" id="liveAvgBuy">—</div>
+            <div class="live-bal-label">Avg Buy Price</div>
+          </div>
+          <div class="live-bal-cell">
+            <div class="live-bal-val" id="liveUnrealizedPnl">—</div>
+            <div class="live-bal-label">Unrealized P&L</div>
+          </div>
+        </div>
+
+        <!-- Open Orders -->
+        <div id="liveOpenOrdersWrap" style="display:none;margin-bottom:12px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px">Open Orders</div>
+          <div id="liveOpenOrders"></div>
+        </div>
+
+        <!-- Trade History -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px">Recent DOG Trades on Kraken</div>
+          <table class="whale-table" style="width:100%">
+            <thead><tr><th>Side</th><th>Volume</th><th>Price</th><th>Cost</th><th>Fee</th><th>Time</th></tr></thead>
+            <tbody id="liveTradeHistory"></tbody>
+          </table>
+        </div>
       </div>
-      <button class="btn-live-load" style="margin-bottom:8px" onclick="loadLiveBalance()">🔑 Load Balance</button>
-      <div class="live-trade-btns">
-        <button class="btn-live-buy" id="btnLiveBuy" onclick="confirmLiveTrade('buy')" disabled>📈 LIVE BUY</button>
-        <button class="btn-live-sell" id="btnLiveSell" onclick="confirmLiveTrade('sell')" disabled>📉 LIVE SELL</button>
-      </div>
-      <button class="btn-emergency" onclick="emergencyStop()">🛑 EMERGENCY STOP — Cancel All Orders</button>
     </div>
 
     <!-- ── AGENT PANEL ── -->
@@ -495,7 +517,7 @@
 </footer>
 
 <script>
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 
 function fmt(n){
   if(n>=1e6) return (n/1e6).toFixed(2)+'M';
@@ -738,7 +760,7 @@ function setError(){
 
 async function fetchData(){
   try{
-    const res  = await fetch(`${API}/api/report?pair=${currentPair}`);
+    const res  = await fetch(`${API}/api/report`);
     if(!res.ok) throw new Error('bad response');
     render(await res.json());
     fetchPaperHistory();
@@ -751,28 +773,16 @@ async function fetchData(){
 
 // ── TRADING MODE STATE ──
 let currentMode = 'paper';
-let currentPair = 'USD';
-let pendingTradeAction = null;
 
 function setMode(mode) {
   currentMode = mode;
   document.getElementById('btnModePaper').className = 'mode-btn' + (mode==='paper' ? ' active paper' : '');
   document.getElementById('btnModeLive').className  = 'mode-btn' + (mode==='live'  ? ' active live'  : '');
   document.getElementById('livePanel').style.display = mode === 'live' ? 'block' : 'none';
-  // Show/hide paper vs live buttons in agent panel
   document.getElementById('btnBuy').style.display  = mode === 'paper' ? '' : 'none';
   document.getElementById('btnSell').style.display = mode === 'paper' ? '' : 'none';
 }
 
-function setPair(pair) {
-  currentPair = pair;
-  document.getElementById('btnPairUSD').className = 'pair-btn' + (pair==='USD' ? ' active' : '');
-  document.getElementById('btnPairEUR').className = 'pair-btn' + (pair==='EUR' ? ' active' : '');
-  cache_ts = 0;
-  fetchData();
-}
-
-// ── LIVE TRADING ──
 function getCredentials() {
   return {
     apiKey:    document.getElementById('credKey').value.trim(),
@@ -780,87 +790,78 @@ function getCredentials() {
   };
 }
 
-async function loadLiveBalance() {
+// ── LIVE PORTFOLIO ──
+async function loadLivePortfolio() {
   const creds = getCredentials();
   if (!creds.apiKey || !creds.apiSecret) {
     showNotif('❌ Enter API Key and Secret first', 'error');
     return;
   }
+  const btn = document.querySelector('.btn-live-load');
+  btn.textContent = '⏳ Loading...';
+  btn.disabled = true;
   try {
-    const res  = await fetch(`${API}/api/live/balance`, {
+    const res  = await fetch(`${API}/api/live/portfolio`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(creds),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    document.getElementById('liveBalance').style.display = 'grid';
-    document.getElementById('liveDog').textContent = fmt(data.dog);
-    document.getElementById('liveUsd').textContent = '$' + data.usd.toFixed(2);
-    document.getElementById('liveEur').textContent = '€' + data.eur.toFixed(2);
-    document.getElementById('btnLiveBuy').disabled  = false;
-    document.getElementById('btnLiveSell').disabled = data.dog <= 0;
-    showNotif('✅ Balance loaded', 'success');
+
+    // Show portfolio data
+    document.getElementById('livePortfolioData').style.display = 'block';
+
+    // DOG balance
+    document.getElementById('liveDogBal').textContent = fmt(data.dog) + ' DOG';
+
+    // Avg buy price
+    document.getElementById('liveAvgBuy').textContent = data.avgBuyPrice
+      ? '$' + data.avgBuyPrice.toFixed(6)
+      : '—';
+
+    // Unrealized P&L
+    const upnl = document.getElementById('liveUnrealizedPnl');
+    if (data.unrealizedPnl !== null) {
+      upnl.textContent = (data.unrealizedPnl >= 0 ? '+' : '') + '$' + data.unrealizedPnl.toFixed(2);
+      upnl.className   = 'live-bal-val ' + (data.unrealizedPnl >= 0 ? 'pnl-pos' : 'pnl-neg');
+    } else {
+      upnl.textContent = '—';
+    }
+
+    // Open orders
+    if (data.openOrders?.length > 0) {
+      document.getElementById('liveOpenOrdersWrap').style.display = 'block';
+      document.getElementById('liveOpenOrders').innerHTML = data.openOrders.map(o => `
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px;font-family:var(--mono);font-size:11px;">
+          <span><span class="side-badge ${o.side.toUpperCase()}">${o.side.toUpperCase()}</span> ${fmt(o.volume)} DOG</span>
+          <span style="color:var(--dim)">${o.type} @ $${o.price.toFixed(6)}</span>
+          <span style="color:var(--dim2)">${o.status}</span>
+        </div>`).join('');
+    }
+
+    // Trade history
+    const tbody = document.getElementById('liveTradeHistory');
+    if (data.tradeHistory?.length > 0) {
+      tbody.innerHTML = data.tradeHistory.map(t => `
+        <tr>
+          <td><span class="side-badge ${t.side}">${t.side}</span></td>
+          <td style="color:var(--text)">${fmt(t.volume)}</td>
+          <td style="color:var(--dim)">$${t.price.toFixed(6)}</td>
+          <td style="color:var(--dim)">$${t.cost.toFixed(2)}</td>
+          <td style="color:var(--gold)">$${t.fee.toFixed(4)}</td>
+          <td style="color:var(--dim2)">${new Date(t.time).toLocaleDateString()}</td>
+        </tr>`).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11px">No DOG trades found on this account</td></tr>';
+    }
+
+    showNotif(`✅ Portfolio loaded — ${fmt(data.dog)} DOG`, 'success');
   } catch(e) {
     showNotif('❌ ' + e.message, 'error');
-  }
-}
-
-function confirmLiveTrade(action) {
-  pendingTradeAction = action;
-  const modal = document.createElement('div');
-  modal.className = 'confirm-modal';
-  modal.id = 'confirmModal';
-  modal.innerHTML = `
-    <div class="confirm-box">
-      <div class="confirm-title">⚠️ REAL MONEY</div>
-      <div class="confirm-text">
-        You are about to execute a <strong style="color:${action==='buy'?'#3ddc84':'#ff4d4d'}">${action.toUpperCase()}</strong> order on your real Kraken account.<br><br>
-        • Max size: 20% of your DOG balance<br>
-        • Dead man switch: orders cancel after 60s<br>
-        • This action is <strong>irreversible</strong><br><br>
-        Are you sure?
-      </div>
-      <div class="confirm-btns">
-        <button class="btn-confirm" onclick="executeLiveTrade()">CONFIRM ${action.toUpperCase()}</button>
-        <button class="btn-cancel-confirm" onclick="document.getElementById('confirmModal').remove()">CANCEL</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-}
-
-async function executeLiveTrade() {
-  document.getElementById('confirmModal')?.remove();
-  const action = pendingTradeAction;
-  const creds  = getCredentials();
-  try {
-    const res  = await fetch(`${API}/api/live/${action}`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ ...creds, confirmed: true, pair: currentPair }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    showNotif(`✅ LIVE ${action.toUpperCase()} executed — ${fmt(data.volume)} DOG`, 'success');
-    loadLiveBalance();
-  } catch(e) {
-    showNotif('❌ ' + e.message, 'error');
-  }
-}
-
-async function emergencyStop() {
-  if (!confirm('EMERGENCY STOP: Cancel ALL open orders on your Kraken account?')) return;
-  const creds = getCredentials();
-  try {
-    const res  = await fetch(`${API}/api/live/cancel-all`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(creds),
-    });
-    const data = await res.json();
-    showNotif('🛑 ' + (data.message || 'All orders cancelled'), 'success');
-  } catch(e) {
-    showNotif('❌ ' + e.message, 'error');
+  } finally {
+    btn.textContent = '🔄 Refresh Portfolio';
+    btn.disabled = false;
   }
 }
 

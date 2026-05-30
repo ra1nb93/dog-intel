@@ -1,21 +1,17 @@
 /**
- * DOG•GO•TO•THE•MOON — Intelligence + Trading Agent API v3
+ * DOG•GO•TO•THE•MOON — Intelligence + Trading Agent API v4
  *
  * GET  /api/report              → full intelligence report (cached 60s)
  * GET  /api/paper/status        → paper account status + P&L
  * GET  /api/paper/history       → paper trade history
  * POST /api/paper/buy           → execute paper buy
  * POST /api/paper/sell          → execute paper sell
- * POST /api/live/balance        → get real Kraken balance (requires credentials)
- * POST /api/live/buy            → execute real buy order (requires credentials)
- * POST /api/live/sell           → execute real sell order (requires credentials)
- * POST /api/live/validate-buy   → validate buy without executing
- * POST /api/live/validate-sell  → validate sell without executing
- * POST /api/live/cancel-all     → cancel all open orders (emergency)
+ * POST /api/live/portfolio      → get real Kraken portfolio (DOG balance + history + open orders)
  * GET  /api/health              → server status
  */
 
 import { execSync }                                 from "child_process";
+import { readFileSync }                              from "fs";
 import http                                         from "http";
 import { URL }                                      from "url";
 import { computePackIndex, decide, TRADE_SIZE_USD } from "./decision-engine.js";
@@ -23,17 +19,14 @@ import { computePackIndex, decide, TRADE_SIZE_USD } from "./decision-engine.js";
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
 const PORT      = 3001;
-const PAIR_USD  = "DOG/USD";
-const PAIR_EUR  = "DOG/EUR";
+const PAIR      = "DOG/USD";
 const WHALE_MIN = 500_000;
 const WALL_MIN  = 5_000_000;
 const CACHE_TTL = 60_000;
 
-// Safety limits per live trading
-const LIVE_MAX_POSITION_PCT = 0.20; // max 20% del balance DOG per trade
-const LIVE_STOP_LOSS_PCT    = 0.05; // stop loss -5%
-const LIVE_TAKE_PROFIT_PCT  = 0.10; // take profit +10%
-const DEAD_MAN_SECONDS      = 60;   // cancel-after timeout
+// Kraken DOGUSD limits
+const KRAKEN_DOG_ORDER_MIN = 6200;
+const KRAKEN_FEE_TAKER     = 0.004; // 0.40% taker fee at volume 0
 
 // ─── CACHE ───────────────────────────────────────────────────────────────────
 
@@ -51,17 +44,21 @@ function cli(cmd) {
   }
 }
 
-// CLI con credenziali live — non salva mai le chiavi su disco
-function cliLive(cmd, apiKey, apiSecret) {
+// CLI autenticato — passa il secret via stdin (sicuro, non esposto nel process listing)
+function cliAuth(cmd, apiKey, apiSecret) {
   try {
     const out = execSync(
-      `kraken ${cmd} --api-key "${apiKey}" --api-secret "${apiSecret}" -o json`,
-      { encoding: "utf8", timeout: 15_000 }
+      `echo "${apiSecret}" | kraken ${cmd} --api-key "${apiKey}" --api-secret-stdin -o json`,
+      { encoding: "utf8", timeout: 15_000, shell: "/bin/sh" }
     );
     return JSON.parse(out);
   } catch (e) {
-    console.error(`[LIVE CLI ERROR] kraken ${cmd}:`, e.message);
-    throw new Error(e.message.includes("Invalid key") ? "Invalid API credentials" : e.message);
+    const msg = e.message;
+    if (msg.includes("Invalid key") || msg.includes("EAPI:Invalid key"))
+      throw new Error("Invalid API credentials");
+    if (msg.includes("Permission denied") || msg.includes("EAPI:Invalid nonce"))
+      throw new Error("API key missing required permissions");
+    throw new Error(msg.split("\n")[0]);
   }
 }
 
@@ -75,23 +72,23 @@ function pct(a, b) { return parseFloat((((a - b) / b) * 100).toFixed(2)); }
 
 // ─── MARKET DATA ─────────────────────────────────────────────────────────────
 
-function fetchTicker(pair = PAIR_USD) {
-  const d = cli(`ticker ${pair}`);
+function fetchTicker() {
+  const d = cli(`ticker ${PAIR}`);
   if (!d) return null;
-  const t = d[pair];
+  const t = d[PAIR];
   return {
     ask: parseFloat(t.a[0]), bid: parseFloat(t.b[0]),
     last: parseFloat(t.c[0]), high24h: parseFloat(t.h[1]),
     low24h: parseFloat(t.l[1]), open: parseFloat(t.o),
     vwap24h: parseFloat(t.p[1]), volume24h: parseFloat(t.v[1]),
-    trades24h: t.t[1], pair,
+    trades24h: t.t[1],
   };
 }
 
-function fetchOrderbook(pair = PAIR_USD) {
-  const d = cli(`orderbook ${pair}`);
+function fetchOrderbook() {
+  const d = cli(`orderbook ${PAIR}`);
   if (!d) return null;
-  const book = d[pair];
+  const book = d[PAIR];
   const asks = book.asks.map(([p, s, ts]) => ({ price: parseFloat(p), size: parseFloat(s), ts }));
   const bids = book.bids.map(([p, s, ts]) => ({ price: parseFloat(p), size: parseFloat(s), ts }));
   const askWalls  = asks.filter(a => a.size >= WALL_MIN);
@@ -109,10 +106,10 @@ function fetchOrderbook(pair = PAIR_USD) {
   };
 }
 
-function fetchTrades(pair = PAIR_USD) {
-  const d = cli(`trades ${pair}`);
+function fetchTrades() {
+  const d = cli(`trades ${PAIR}`);
   if (!d) return null;
-  const trades = d[pair].map(([price, volume, time, side, type, , id]) => ({
+  const trades = d[PAIR].map(([price, volume, time, side, type, , id]) => ({
     price: parseFloat(price), volume: parseFloat(volume),
     time: parseFloat(time), side: side === "b" ? "BUY" : "SELL",
     type: type === "m" ? "MARKET" : "LIMIT",
@@ -132,10 +129,10 @@ function fetchTrades(pair = PAIR_USD) {
   };
 }
 
-function fetchOHLC(pair = PAIR_USD) {
-  const d = cli(`ohlc ${pair} --interval 60`);
+function fetchOHLC() {
+  const d = cli(`ohlc ${PAIR} --interval 60`);
   if (!d) return null;
-  return (d[pair] || []).slice(-48);
+  return (d[PAIR] || []).slice(-48);
 }
 
 // ─── PAPER TRADING ───────────────────────────────────────────────────────────
@@ -151,57 +148,100 @@ function fetchPaperHistory() { return cli("paper history"); }
 
 function executePaperBuy(volume) {
   try {
-    const out = execSync(`kraken paper buy ${PAIR_USD} ${Math.floor(volume)} -o json`, { encoding: "utf8", timeout: 10_000 });
+    const out = execSync(`kraken paper buy ${PAIR} ${Math.floor(volume)} -o json`,
+      { encoding: "utf8", timeout: 10_000 });
     return JSON.parse(out);
   } catch (e) { return { error: e.message }; }
 }
 
 function executePaperSell(volume) {
   try {
-    const out = execSync(`kraken paper sell ${PAIR_USD} ${Math.floor(volume)} -o json`, { encoding: "utf8", timeout: 10_000 });
+    const out = execSync(`kraken paper sell ${PAIR} ${Math.floor(volume)} -o json`,
+      { encoding: "utf8", timeout: 10_000 });
     return JSON.parse(out);
   } catch (e) { return { error: e.message }; }
 }
 
-// ─── LIVE TRADING ─────────────────────────────────────────────────────────────
+// ─── LIVE PORTFOLIO (read-only) ───────────────────────────────────────────────
 
-function getLiveBalance(apiKey, apiSecret) {
-  return cliLive("balance", apiKey, apiSecret);
-}
+function fetchLivePortfolio(apiKey, apiSecret) {
+  // 1. Balance
+  const balance = cliAuth("balance", apiKey, apiSecret);
+  const dog     = parseFloat(balance?.DOG || 0);
 
-function executeLiveBuy(volume, pair, apiKey, apiSecret) {
-  console.log(`[LIVE BUY] ${volume} ${pair}`);
-
-  // Dead man's switch — cancella tutto dopo DEAD_MAN_SECONDS
+  // 2. Trade history DOG
+  let tradeHistory = [];
   try {
-    execSync(
-      `kraken order cancel-after ${DEAD_MAN_SECONDS} --api-key "${apiKey}" --api-secret "${apiSecret}" -o json`,
-      { encoding: "utf8", timeout: 10_000 }
-    );
-  } catch(e) { console.warn("[DEAD MAN SWITCH] Failed to set:", e.message); }
+    const hist = cliAuth("trades-history", apiKey, apiSecret);
+    const trades = hist?.trades || {};
+    tradeHistory = Object.values(trades)
+      .filter(t => t.pair === "DOGUSD" || t.pair === "DOG/USD")
+      .sort((a, b) => b.time - a.time)
+      .slice(0, 20)
+      .map(t => ({
+        side:   t.type === "buy" ? "BUY" : "SELL",
+        volume: parseFloat(t.vol),
+        price:  parseFloat(t.price),
+        cost:   parseFloat(t.cost),
+        fee:    parseFloat(t.fee),
+        time:   new Date(t.time * 1000).toISOString(),
+      }));
+  } catch(e) { console.warn("[TRADE HISTORY]", e.message); }
 
-  return cliLive(`order buy ${pair} ${Math.floor(volume)} --type market --yes`, apiKey, apiSecret);
-}
-
-function executeLiveSell(volume, pair, apiKey, apiSecret) {
-  console.log(`[LIVE SELL] ${volume} ${pair}`);
-
+  // 3. Open orders
+  let openOrders = [];
   try {
-    execSync(
-      `kraken order cancel-after ${DEAD_MAN_SECONDS} --api-key "${apiKey}" --api-secret "${apiSecret}" -o json`,
-      { encoding: "utf8", timeout: 10_000 }
-    );
-  } catch(e) { console.warn("[DEAD MAN SWITCH] Failed to set:", e.message); }
+    const orders = cliAuth("open-orders", apiKey, apiSecret);
+    const all = orders?.open || {};
+    openOrders = Object.entries(all)
+      .filter(([, o]) => o.descr?.pair?.includes("DOG"))
+      .map(([id, o]) => ({
+        id,
+        side:   o.descr.type,
+        type:   o.descr.ordertype,
+        volume: parseFloat(o.vol),
+        price:  parseFloat(o.descr.price || 0),
+        status: o.status,
+      }));
+  } catch(e) { console.warn("[OPEN ORDERS]", e.message); }
 
-  return cliLive(`order sell ${pair} ${Math.floor(volume)} --type market --yes`, apiKey, apiSecret);
-}
+  // 4. P&L calcolato sui trade storici
+  let realizedPnl = 0;
+  let totalBought = 0, totalCostBuy = 0;
+  let totalSold   = 0, totalCostSell = 0;
 
-function validateLiveOrder(side, volume, pair, apiKey, apiSecret) {
-  return cliLive(`order ${side} ${pair} ${Math.floor(volume)} --type market --validate`, apiKey, apiSecret);
-}
+  tradeHistory.forEach(t => {
+    if (t.side === "BUY") {
+      totalBought  += t.volume;
+      totalCostBuy += t.cost + t.fee;
+    } else {
+      totalSold    += t.volume;
+      totalCostSell += t.cost - t.fee;
+    }
+  });
 
-function cancelAllLiveOrders(apiKey, apiSecret) {
-  return cliLive("order cancel-all --yes", apiKey, apiSecret);
+  if (totalBought > 0) {
+    const avgBuyPrice = totalCostBuy / totalBought;
+    realizedPnl = totalCostSell - (totalSold * avgBuyPrice);
+  }
+
+  // 5. Unrealized P&L (se hai DOG, vs prezzo attuale)
+  const ticker = fetchTicker();
+  const unrealizedPnl = ticker && totalBought > totalSold && totalCostBuy > 0
+    ? (dog * ticker.last) - ((totalCostBuy / totalBought) * dog)
+    : null;
+
+  return {
+    dog,
+    dogFormatted: fmt(dog),
+    tradeHistory,
+    openOrders,
+    realizedPnl:   parseFloat(realizedPnl.toFixed(4)),
+    unrealizedPnl: unrealizedPnl !== null ? parseFloat(unrealizedPnl.toFixed(4)) : null,
+    avgBuyPrice:   totalBought > 0 ? parseFloat((totalCostBuy / totalBought).toFixed(8)) : null,
+    currentPrice:  ticker?.last || null,
+    totalTradesFound: tradeHistory.length,
+  };
 }
 
 // ─── SIGNALS ─────────────────────────────────────────────────────────────────
@@ -234,20 +274,19 @@ function analyze(ticker, book, trades) {
 
 // ─── REPORT BUILDER ──────────────────────────────────────────────────────────
 
-function buildReport(pair = PAIR_USD) {
-  console.log(`[fetch] pulling fresh data from Kraken CLI (${pair})...`);
-  const ticker = fetchTicker(pair);
-  const book   = fetchOrderbook(pair);
-  const trades = fetchTrades(pair);
+function buildReport() {
+  console.log("[fetch] pulling fresh data from Kraken CLI...");
+  const ticker = fetchTicker();
+  const book   = fetchOrderbook();
+  const trades = fetchTrades();
   if (!ticker || !book || !trades) return null;
-  const ohlc      = fetchOHLC(pair);
+  const ohlc      = fetchOHLC();
   const paper     = fetchPaperStatus();
   const packIndex = computePackIndex(ticker, book, trades, ohlc);
   const agent     = decide(packIndex, ticker, book, trades, paper);
   const signals   = analyze(ticker, book, trades);
   return {
     timestamp: new Date().toISOString(),
-    pair,
     price: {
       last: ticker.last, ask: ticker.ask, bid: ticker.bid,
       high24h: ticker.high24h, low24h: ticker.low24h,
@@ -260,7 +299,8 @@ function buildReport(pair = PAIR_USD) {
     orderbook: {
       spread: book.spread, spreadPct: book.spreadPct,
       bidLiq1pct: book.bidLiq1pct, askLiq1pct: book.askLiq1pct,
-      asks: book.asks, bids: book.bids, bidWalls: book.bidWalls, askWalls: book.askWalls,
+      asks: book.asks, bids: book.bids,
+      bidWalls: book.bidWalls, askWalls: book.askWalls,
     },
     whales: {
       trades: trades.whaleTrades.slice(0, 10),
@@ -270,19 +310,13 @@ function buildReport(pair = PAIR_USD) {
     },
     signals, packIndex, agent,
     paper: paper || null,
-    liveConfig: {
-      maxPositionPct: LIVE_MAX_POSITION_PCT,
-      stopLossPct:    LIVE_STOP_LOSS_PCT,
-      takeProfitPct:  LIVE_TAKE_PROFIT_PCT,
-      deadManSeconds: DEAD_MAN_SECONDS,
-    },
   };
 }
 
-function getCachedReport(pair = PAIR_USD) {
+function getCachedReport() {
   const now = Date.now();
-  if (cache.data && now - cache.ts < CACHE_TTL && cache.data.pair === pair) return cache.data;
-  const report = buildReport(pair);
+  if (cache.data && now - cache.ts < CACHE_TTL) return cache.data;
+  const report = buildReport();
   if (report) cache = { data: report, ts: now };
   return report || cache.data;
 }
@@ -316,8 +350,8 @@ function requireCredentials(body) {
 // ─── SERVER ──────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
-  const url    = new URL(req.url, `http://localhost:${PORT}`);
-  const path   = url.pathname;
+  const url  = new URL(req.url, `http://localhost:${PORT}`);
+  const path = url.pathname;
 
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -328,28 +362,40 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // ── GET /api/health ──
+  // GET / → serve dashboard
+  if (req.method === "GET" && (path === "/" || path === "/index.html")) {
+    try {
+      const html = readFileSync(new URL('./index.html', import.meta.url));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(html);
+    } catch(e) {
+      res.writeHead(404); return res.end("index.html not found");
+    }
+  }
+
+  // GET /api/health
   if (req.method === "GET" && path === "/api/health")
     return json(res, 200, { status: "ok", ts: new Date().toISOString() });
 
-  // ── GET /api/report ──
+  // GET /api/report
   if (req.method === "GET" && path === "/api/report") {
-    const pair   = url.searchParams.get("pair") === "EUR" ? PAIR_EUR : PAIR_USD;
-    const report = getCachedReport(pair);
+    const report = getCachedReport();
     return report ? json(res, 200, report) : json(res, 503, { error: "Data unavailable" });
   }
 
-  // ── PAPER ──
+  // GET /api/paper/status
   if (req.method === "GET" && path === "/api/paper/status") {
     const s = fetchPaperStatus();
     return s ? json(res, 200, s) : json(res, 503, { error: "Unavailable" });
   }
 
+  // GET /api/paper/history
   if (req.method === "GET" && path === "/api/paper/history") {
     const h = fetchPaperHistory();
     return h ? json(res, 200, h) : json(res, 503, { error: "Unavailable" });
   }
 
+  // POST /api/paper/buy
   if (req.method === "POST" && path === "/api/paper/buy") {
     const body   = await readBody(req);
     const ticker = fetchTicker();
@@ -360,6 +406,7 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ...result, volume, estimatedPrice: ticker.last });
   }
 
+  // POST /api/paper/sell
   if (req.method === "POST" && path === "/api/paper/sell") {
     const body   = await readBody(req);
     const paper  = fetchPaperStatus();
@@ -371,112 +418,13 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ...result, volume: body.volume || dogBal });
   }
 
-  // ── LIVE TRADING ──
-
-  // POST /api/live/balance
-  if (req.method === "POST" && path === "/api/live/balance") {
+  // POST /api/live/portfolio — read-only, no trading
+  if (req.method === "POST" && path === "/api/live/portfolio") {
     const body = await readBody(req);
     try {
       requireCredentials(body);
-      const balance = getLiveBalance(body.apiKey, body.apiSecret);
-      const dog = parseFloat(balance?.DOG || 0);
-      const eur = parseFloat(balance?.ZEUR || balance?.EUR || 0);
-      const usd = parseFloat(balance?.ZUSD || balance?.USD || 0);
-      return json(res, 200, { dog, eur, usd, raw: balance });
-    } catch(e) {
-      return json(res, 400, { error: e.message });
-    }
-  }
-
-  // POST /api/live/validate-buy
-  if (req.method === "POST" && path === "/api/live/validate-buy") {
-    const body = await readBody(req);
-    try {
-      requireCredentials(body);
-      const ticker = fetchTicker(body.pair === "EUR" ? PAIR_EUR : PAIR_USD);
-      if (!ticker) return json(res, 503, { error: "Cannot fetch price" });
-      const volume = Math.floor((body.usd || TRADE_SIZE_USD) / ticker.last);
-      const pair   = body.pair === "EUR" ? PAIR_EUR : PAIR_USD;
-      const result = validateLiveOrder("buy", volume, pair, body.apiKey, body.apiSecret);
-      return json(res, 200, { ...result, volume, estimatedPrice: ticker.last, pair });
-    } catch(e) {
-      return json(res, 400, { error: e.message });
-    }
-  }
-
-  // POST /api/live/validate-sell
-  if (req.method === "POST" && path === "/api/live/validate-sell") {
-    const body = await readBody(req);
-    try {
-      requireCredentials(body);
-      const balance = getLiveBalance(body.apiKey, body.apiSecret);
-      const dog = parseFloat(balance?.DOG || 0);
-      if (dog <= 0) return json(res, 400, { error: "No DOG available" });
-      const volume = Math.floor(dog * LIVE_MAX_POSITION_PCT);
-      const pair   = body.pair === "EUR" ? PAIR_EUR : PAIR_USD;
-      const result = validateLiveOrder("sell", volume, pair, body.apiKey, body.apiSecret);
-      return json(res, 200, { ...result, volume, pair });
-    } catch(e) {
-      return json(res, 400, { error: e.message });
-    }
-  }
-
-  // POST /api/live/buy
-  if (req.method === "POST" && path === "/api/live/buy") {
-    const body = await readBody(req);
-    try {
-      requireCredentials(body);
-      if (!body.confirmed) return json(res, 400, { error: "Missing confirmed:true — safety check" });
-      const ticker  = fetchTicker(body.pair === "EUR" ? PAIR_EUR : PAIR_USD);
-      if (!ticker) return json(res, 503, { error: "Cannot fetch price" });
-      const balance = getLiveBalance(body.apiKey, body.apiSecret);
-      const availUSD = parseFloat(balance?.ZUSD || balance?.USD || 0);
-      const availEUR = parseFloat(balance?.ZEUR || balance?.EUR || 0);
-      const avail    = body.pair === "EUR" ? availEUR : availUSD;
-      const tradeUSD = Math.min(body.usd || TRADE_SIZE_USD, avail * LIVE_MAX_POSITION_PCT);
-      if (tradeUSD < 1) return json(res, 400, { error: "Insufficient balance" });
-      const volume = Math.floor(tradeUSD / ticker.last);
-      const pair   = body.pair === "EUR" ? PAIR_EUR : PAIR_USD;
-      const result = executeLiveBuy(volume, pair, body.apiKey, body.apiSecret);
-      console.log(`[LIVE BUY EXECUTED] ${volume} ${pair} @ ~${ticker.last}`);
-      cache.ts = 0;
-      return json(res, 200, {
-        ...result, volume, estimatedPrice: ticker.last, pair,
-        stopLoss:   parseFloat((ticker.last * (1 - LIVE_STOP_LOSS_PCT)).toFixed(8)),
-        takeProfit: parseFloat((ticker.last * (1 + LIVE_TAKE_PROFIT_PCT)).toFixed(8)),
-      });
-    } catch(e) {
-      return json(res, 400, { error: e.message });
-    }
-  }
-
-  // POST /api/live/sell
-  if (req.method === "POST" && path === "/api/live/sell") {
-    const body = await readBody(req);
-    try {
-      requireCredentials(body);
-      if (!body.confirmed) return json(res, 400, { error: "Missing confirmed:true — safety check" });
-      const balance = getLiveBalance(body.apiKey, body.apiSecret);
-      const dog     = parseFloat(balance?.DOG || 0);
-      if (dog <= 0) return json(res, 400, { error: "No DOG available to sell" });
-      const volume = body.volume || Math.floor(dog * LIVE_MAX_POSITION_PCT);
-      const pair   = body.pair === "EUR" ? PAIR_EUR : PAIR_USD;
-      const result = executeLiveSell(volume, pair, body.apiKey, body.apiSecret);
-      console.log(`[LIVE SELL EXECUTED] ${volume} ${pair}`);
-      cache.ts = 0;
-      return json(res, 200, { ...result, volume, pair });
-    } catch(e) {
-      return json(res, 400, { error: e.message });
-    }
-  }
-
-  // POST /api/live/cancel-all (emergency stop)
-  if (req.method === "POST" && path === "/api/live/cancel-all") {
-    const body = await readBody(req);
-    try {
-      requireCredentials(body);
-      const result = cancelAllLiveOrders(body.apiKey, body.apiSecret);
-      return json(res, 200, { ...result, message: "All orders cancelled" });
+      const portfolio = fetchLivePortfolio(body.apiKey, body.apiSecret);
+      return json(res, 200, portfolio);
     } catch(e) {
       return json(res, 400, { error: e.message });
     }
@@ -485,18 +433,13 @@ const server = http.createServer(async (req, res) => {
   return json(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, () => {
-  console.log(`\n🐕  DOG Intelligence + Trading Agent v3`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🐕  DOG Intelligence + Trading Agent v4`);
   console.log(`    http://localhost:${PORT}/api/report`);
-  console.log(`    http://localhost:${PORT}/api/report?pair=EUR`);
   console.log(`\n    PAPER TRADING`);
   console.log(`    POST /api/paper/buy`);
   console.log(`    POST /api/paper/sell`);
-  console.log(`\n    LIVE TRADING (requires API credentials)`);
-  console.log(`    POST /api/live/balance`);
-  console.log(`    POST /api/live/validate-buy`);
-  console.log(`    POST /api/live/buy`);
-  console.log(`    POST /api/live/sell`);
-  console.log(`    POST /api/live/cancel-all  ← emergency stop`);
-  console.log(`\n    Safety: stop-loss -${LIVE_STOP_LOSS_PCT*100}% | take-profit +${LIVE_TAKE_PROFIT_PCT*100}% | dead-man ${DEAD_MAN_SECONDS}s\n`);
+  console.log(`\n    LIVE PORTFOLIO (read-only)`);
+  console.log(`    POST /api/live/portfolio`);
+  console.log(`\n    Cache TTL: ${CACHE_TTL / 1000}s\n`);
 });
