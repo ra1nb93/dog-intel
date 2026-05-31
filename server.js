@@ -434,6 +434,19 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
+  // Auto-inizializza paper trading se non esiste
+  try {
+    execSync("kraken paper status -o json", { encoding: "utf8", timeout: 5_000 });
+    console.log("[paper] Account already initialized");
+  } catch(e) {
+    try {
+      execSync("kraken paper init", { encoding: "utf8", timeout: 5_000 });
+      console.log("[paper] Account initialized with $10,000");
+    } catch(e2) {
+      console.warn("[paper] Could not initialize:", e2.message);
+    }
+  }
+
   console.log(`\n🐕  DOG Intelligence + Trading Agent v4`);
   console.log(`    http://localhost:${PORT}/api/report`);
   console.log(`\n    PAPER TRADING`);
