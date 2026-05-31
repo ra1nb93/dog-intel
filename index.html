@@ -521,7 +521,9 @@
 </footer>
 
 <script>
-const API = `http://${window.location.hostname}:3001`;
+const API = window.location.port === '3001' || window.location.port === '8080'
+  ? `http://${window.location.hostname}:3001`
+  : window.location.origin;
 
 function fmt(n){
   if(n>=1e6) return (n/1e6).toFixed(2)+'M';
