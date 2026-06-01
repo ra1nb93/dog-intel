@@ -736,6 +736,8 @@ function render(d){
   document.getElementById('footerTs').textContent = new Date(d.timestamp).toLocaleString();
   document.getElementById('loadingScreen').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
+  // Init mode once after DOM is ready
+  if (!window._modeInitialized) { initMode(); window._modeInitialized = true; }
 }
 
 // Paper trade history (separate fetch)
@@ -890,7 +892,6 @@ async function loadLivePortfolio() {
   }
 }
 
-initMode();
 fetchData();
 setInterval(fetchData, 30_000);
 </script>
