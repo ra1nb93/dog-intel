@@ -135,6 +135,56 @@ function fetchOHLC() {
   return (d[PAIR] || []).slice(-48);
 }
 
+// ─── BTC NETWORK CONTEXT ─────────────────────────────────────────────────────
+
+let btcCache = { data: null, ts: 0 };
+const BTC_CACHE_TTL = 120_000; // 2 minutes
+
+async function fetchJSON(url) {
+  const res = await fetch(url, { headers: { 'User-Agent': 'dog-intel/1.0' } });
+  return res.json();
+}
+
+async function fetchBTCContext() {
+  const now = Date.now();
+  if (btcCache.data && now - btcCache.ts < BTC_CACHE_TTL) return btcCache.data;
+  try {
+    const [fees, blocks, price] = await Promise.all([
+      fetchJSON('https://mempool.space/api/v1/fees/recommended'),
+      fetchJSON('https://mempool.space/api/blocks'),
+      fetchJSON('https://mempool.space/api/v1/prices'),
+    ]);
+    const lastBlock = blocks[0];
+    const data = {
+      fees: {
+        fast:     fees.fastestFee,
+        medium:   fees.halfHourFee,
+        slow:     fees.hourFee,
+        economy:  fees.economyFee,
+      },
+      mempool: {
+        blocks: blocks.slice(0, 4).map(b => ({
+          height:   b.height,
+          txCount:  b.tx_count,
+          size:     (b.size / 1_000_000).toFixed(2),
+          time:     b.timestamp,
+        })),
+      },
+      btcPrice: price?.USD || null,
+      lastBlock: {
+        height:  lastBlock.height,
+        txCount: lastBlock.tx_count,
+        time:    lastBlock.timestamp,
+      },
+    };
+    btcCache = { data, ts: now };
+    return data;
+  } catch(e) {
+    console.warn('[BTC CONTEXT]', e.message);
+    return btcCache.data || null;
+  }
+}
+
 // ─── PAPER TRADING ───────────────────────────────────────────────────────────
 
 function fetchPaperStatus() {
@@ -274,7 +324,7 @@ function analyze(ticker, book, trades) {
 
 // ─── REPORT BUILDER ──────────────────────────────────────────────────────────
 
-function buildReport() {
+async function buildReport() {
   console.log("[fetch] pulling fresh data from Kraken CLI...");
   const ticker = fetchTicker();
   const book   = fetchOrderbook();
@@ -311,13 +361,14 @@ function buildReport() {
     signals, packIndex, agent,
     paper: paper || null,
     ohlc: ohlc ? ohlc.slice(-48) : null,
+    btc: await fetchBTCContext(),
   };
 }
 
-function getCachedReport() {
+async function getCachedReport() {
   const now = Date.now();
   if (cache.data && now - cache.ts < CACHE_TTL) return cache.data;
-  const report = buildReport();
+  const report = await buildReport();
   if (report) cache = { data: report, ts: now };
   return report || cache.data;
 }
@@ -378,9 +429,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && path === "/api/health")
     return json(res, 200, { status: "ok", ts: new Date().toISOString() });
 
+  // GET /api/btc
+  if (req.method === "GET" && path === "/api/btc") {
+    const btc = await fetchBTCContext();
+    return btc ? json(res, 200, btc) : json(res, 503, { error: "BTC data unavailable" });
+  }
+
   // GET /api/report
   if (req.method === "GET" && path === "/api/report") {
-    const report = getCachedReport();
+    const report = await getCachedReport();
     return report ? json(res, 200, report) : json(res, 503, { error: "Data unavailable" });
   }
 
