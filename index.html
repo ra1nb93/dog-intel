@@ -309,51 +309,6 @@
 
     </div>
 
-    <!-- LIVE PORTFOLIO PANEL (hidden by default) -->
-    <div class="live-panel" id="livePanel" style="display:none">
-      <div class="live-warning">🔑 Connect your Kraken account to monitor your real DOG position</div>
-      <div class="live-credentials">
-        <input class="cred-input" id="credKey" type="password" placeholder="API Key (Query Funds permission)" autocomplete="off" />
-        <input class="cred-input" id="credSecret" type="password" placeholder="API Secret" autocomplete="off" />
-      </div>
-      <button class="btn-live-load" style="margin-bottom:12px;width:100%" onclick="loadLivePortfolio()">🔑 Connect & Load Portfolio</button>
-
-      <!-- Portfolio data (hidden until loaded) -->
-      <div id="livePortfolioData" style="display:none">
-
-        <!-- DOG Position -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
-          <div class="live-bal-cell">
-            <div class="live-bal-val" id="liveDogBal">—</div>
-            <div class="live-bal-label">DOG Balance</div>
-          </div>
-          <div class="live-bal-cell">
-            <div class="live-bal-val" id="liveAvgBuy">—</div>
-            <div class="live-bal-label">Avg Buy Price</div>
-          </div>
-          <div class="live-bal-cell">
-            <div class="live-bal-val" id="liveUnrealizedPnl">—</div>
-            <div class="live-bal-label">Unrealized P&L</div>
-          </div>
-        </div>
-
-        <!-- Open Orders -->
-        <div id="liveOpenOrdersWrap" style="display:none;margin-bottom:12px">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px">Open Orders</div>
-          <div id="liveOpenOrders"></div>
-        </div>
-
-        <!-- Trade History -->
-        <div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px">Recent DOG Trades on Kraken</div>
-          <table class="whale-table" style="width:100%">
-            <thead><tr><th>Side</th><th>Volume</th><th>Price</th><th>Cost</th><th>Fee</th><th>Time</th></tr></thead>
-            <tbody id="liveTradeHistory"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
 
     <!-- CANDLESTICK CHART -->
     <div class="card" style="margin-bottom:14px">
@@ -370,7 +325,7 @@
     </div>
 
     <!-- ── AGENT PANEL ── -->
-    <div class="agent-panel">
+    <div class="agent-panel" id="agentPanel">
 
       <!-- Pack Index Gauge -->
       <div class="card">
@@ -404,7 +359,7 @@
       </div>
 
       <!-- Decision + Trade -->
-      <div class="card">
+      <div class="card" id="agentDecisionCard">
         <div class="card-header">
           <span class="card-title">Agent Decision</span>
           <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">Paper Trading · No real money</span>
@@ -415,8 +370,9 @@
             <div class="decision-reason" id="decisionReason">—</div>
             <div class="decision-action" id="decisionAction">—</div>
 
-            <!-- Paper Portfolio -->
-            <div class="portfolio-grid">
+            <!-- Paper Portfolio (visible in PAPER mode only) -->
+            <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px" id="paperPortfolioLabel">📄 Paper Account (simulated)</div>
+            <div class="portfolio-grid" id="paperPortfolioGrid">
               <div class="port-cell">
                 <div class="port-val" id="portUsd">—</div>
                 <div class="port-label">USD Balance</div>
@@ -442,6 +398,38 @@
           </div>
         </div>
       </div>
+      <!-- Live Portfolio Card (shown in LIVE mode) -->
+      <div class="card" id="livePortfolioCard" style="display:none">
+        <div class="card-header">
+          <span class="card-title">⚡ Live Portfolio</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">Kraken Account</span>
+        </div>
+        <div class="card-body" style="padding:12px 16px">
+          <div class="live-warning" style="margin-bottom:10px">🔑 Connect your Kraken account</div>
+          <div class="live-credentials">
+            <input class="cred-input" id="credKey" type="password" placeholder="API Key" autocomplete="off" />
+            <input class="cred-input" id="credSecret" type="password" placeholder="API Secret" autocomplete="off" />
+          </div>
+          <button class="btn-live-load" style="margin-bottom:10px;width:100%" onclick="loadLivePortfolio()">🔑 Connect & Load Portfolio</button>
+          <div id="livePortfolioData" style="display:none">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+              <div class="live-bal-cell"><div class="live-bal-val" id="liveDogBal">—</div><div class="live-bal-label">DOG</div></div>
+              <div class="live-bal-cell"><div class="live-bal-val" id="liveAvgBuy">—</div><div class="live-bal-label">Avg Buy</div></div>
+              <div class="live-bal-cell"><div class="live-bal-val" id="liveUnrealizedPnl">—</div><div class="live-bal-label">Unreal. P&L</div></div>
+            </div>
+            <div id="liveOpenOrdersWrap" style="display:none;margin-bottom:8px">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px">Open Orders</div>
+              <div id="liveOpenOrders"></div>
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px">Recent DOG Trades</div>
+            <table class="whale-table" style="width:100%">
+              <thead><tr><th>Side</th><th>Vol</th><th>Price</th><th>Cost</th><th>Fee</th><th>Date</th></tr></thead>
+              <tbody id="liveTradeHistory"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- SIGNALS + WHALES -->
@@ -530,7 +518,7 @@
   <span>DOG•GO•TO•THE•MOON INTELLIGENCE · BUILT WITH KRAKEN CLI</span>
   <span>Data refreshes every 60s · <span id="footerTs">—</span></span>
   <span style="grid-column:1/-1;text-align:center;color:var(--dim2);font-size:9px;margin-top:6px">
-    This tool does not collect, store, or transmit any personal data.
+    This tool does not collect, store, or transmit any personal data. 
     API credentials are used in-memory only and never stored. Not financial advice.
   </span>
 </footer>
@@ -949,7 +937,7 @@ function renderChart(candles, ema9Val, ema21Val) {
 let currentMode = 'paper';
 
 // Detect if running locally or on Render
-const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname) 
   || window.location.hostname.startsWith('192.168.')
   || window.location.hostname.startsWith('10.');
 
@@ -971,7 +959,17 @@ function setMode(mode) {
   currentMode = mode;
   document.getElementById('btnModePaper').className = 'mode-btn' + (mode==='paper' ? ' active paper' : '');
   document.getElementById('btnModeLive').className  = 'mode-btn' + (mode==='live'  ? ' active live'  : '');
-  document.getElementById('livePanel').style.display = mode === 'live' ? 'block' : 'none';
+  // livePortfolioCard handled below
+  // Switch between paper and live cards
+  const ppg       = document.getElementById('paperPortfolioGrid');
+  const pplbl     = document.getElementById('paperPortfolioLabel');
+  const agCard    = document.getElementById('agentDecisionCard');
+  const liveCard  = document.getElementById('livePortfolioCard');
+  const isPaper   = mode === 'paper';
+  if (ppg)      ppg.style.display      = isPaper ? '' : 'none';
+  if (pplbl)    pplbl.style.display    = isPaper ? '' : 'none';
+  if (agCard)   agCard.style.display   = isPaper ? '' : 'none';
+  if (liveCard) liveCard.style.display = isPaper ? 'none' : '';
   if (isLocal) {
     document.getElementById('btnBuy').style.display  = mode === 'paper' ? '' : 'none';
     document.getElementById('btnSell').style.display = mode === 'paper' ? '' : 'none';
