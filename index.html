@@ -515,7 +515,7 @@
   <span>DOG•GO•TO•THE•MOON INTELLIGENCE · BUILT WITH KRAKEN CLI</span>
   <span>Data refreshes every 60s · <span id="footerTs">—</span></span>
   <span style="grid-column:1/-1;text-align:center;color:var(--dim2);font-size:9px;margin-top:6px">
-    This tool does not collect, store, or transmit any personal data.
+    This tool does not collect, store, or transmit any personal data. 
     API credentials are used in-memory only and never stored. Not financial advice.
   </span>
 </footer>
@@ -780,13 +780,32 @@ async function fetchData(){
 // ── TRADING MODE STATE ──
 let currentMode = 'paper';
 
+// Detect if running locally or on Render
+const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname) 
+  || window.location.hostname.startsWith('192.168.')
+  || window.location.hostname.startsWith('10.');
+
+function initMode() {
+  if (!isLocal) {
+    // On Render: hide paper trading, show only LIVE portfolio
+    document.getElementById('modeToggleWrap').style.display = 'none';
+    document.getElementById('localOnlyNotice').style.display = 'block';
+    // Hide paper agent panel elements
+    document.getElementById('btnBuy').style.display  = 'none';
+    document.getElementById('btnSell').style.display = 'none';
+    setMode('live');
+  }
+}
+
 function setMode(mode) {
   currentMode = mode;
   document.getElementById('btnModePaper').className = 'mode-btn' + (mode==='paper' ? ' active paper' : '');
   document.getElementById('btnModeLive').className  = 'mode-btn' + (mode==='live'  ? ' active live'  : '');
   document.getElementById('livePanel').style.display = mode === 'live' ? 'block' : 'none';
-  document.getElementById('btnBuy').style.display  = mode === 'paper' ? '' : 'none';
-  document.getElementById('btnSell').style.display = mode === 'paper' ? '' : 'none';
+  if (isLocal) {
+    document.getElementById('btnBuy').style.display  = mode === 'paper' ? '' : 'none';
+    document.getElementById('btnSell').style.display = mode === 'paper' ? '' : 'none';
+  }
 }
 
 function getCredentials() {
@@ -871,6 +890,7 @@ async function loadLivePortfolio() {
   }
 }
 
+initMode();
 fetchData();
 setInterval(fetchData, 30_000);
 </script>
