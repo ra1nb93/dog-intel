@@ -129,10 +129,10 @@ function fetchTrades() {
   };
 }
 
-function fetchOHLC() {
-  const d = cli(`ohlc ${PAIR} --interval 60`);
+function fetchOHLC(interval = 60, count = 48) {
+  const d = cli(`ohlc ${PAIR} --interval ${interval}`);
   if (!d) return null;
-  return (d[PAIR] || []).slice(-48);
+  return (d[PAIR] || []).slice(-count);
 }
 
 // ─── BTC NETWORK CONTEXT ─────────────────────────────────────────────────────
@@ -428,6 +428,16 @@ const server = http.createServer(async (req, res) => {
   // GET /api/health
   if (req.method === "GET" && path === "/api/health")
     return json(res, 200, { status: "ok", ts: new Date().toISOString() });
+
+  // GET /api/ohlc?interval=15|60|240
+  if (req.method === "GET" && path === "/api/ohlc") {
+    const interval = parseInt(url.searchParams.get("interval") || "60");
+    const count    = interval === 15 ? 96 : interval === 240 ? 42 : 48;
+    const valid    = [15, 60, 240].includes(interval);
+    if (!valid) return json(res, 400, { error: "interval must be 15, 60, or 240" });
+    const candles = fetchOHLC(interval, count);
+    return candles ? json(res, 200, { interval, candles }) : json(res, 503, { error: "OHLC unavailable" });
+  }
 
   // GET /api/btc
   if (req.method === "GET" && path === "/api/btc") {

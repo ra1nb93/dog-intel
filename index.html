@@ -311,16 +311,34 @@
 
 
     <!-- CANDLESTICK CHART -->
-    <div class="card" style="margin-bottom:14px">
+    <div class="card" style="margin-bottom:14px;position:relative">
       <div class="card-header">
-        <span class="card-title">Price Chart — 48h Hourly</span>
-        <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">
-          <span style="color:var(--gold)">━</span> EMA9 &nbsp;
-          <span style="color:#a78bfa">━</span> EMA21
-        </span>
+        <span class="card-title">Price Chart</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">
+            <span style="color:var(--gold)">━</span> EMA9 &nbsp;
+            <span style="color:#a78bfa">━</span> EMA21
+          </span>
+          <div style="display:flex;gap:3px">
+            <button onclick="setTimeframe(15)"  id="tf15"  style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--dim);cursor:pointer">15m</button>
+            <button onclick="setTimeframe(60)"  id="tf60"  style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px;border:1px solid rgba(245,166,35,0.4);background:rgba(245,166,35,0.1);color:var(--gold);cursor:pointer">1h</button>
+            <button onclick="setTimeframe(240)" id="tf240" style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--dim);cursor:pointer">4h</button>
+          </div>
+        </div>
       </div>
-      <div class="card-body" style="padding:12px 16px">
-        <canvas id="candleChart" style="width:100%;height:180px;display:block"></canvas>
+      <div class="card-body" style="padding:12px 16px 8px" id="chartBody">
+        <canvas id="candleChart" style="width:100%;height:200px;display:block;cursor:crosshair"></canvas>
+        <canvas id="volumeChart" style="width:100%;height:40px;display:block;margin-top:2px"></canvas>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.1em">RSI(14)</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">
+            <span style="color:var(--green)">━ 30</span> &nbsp;
+            <span style="color:var(--red)">━ 70</span>
+          </span>
+        </div>
+        <canvas id="rsiChart" style="width:100%;height:60px;display:block"></canvas>
+        <!-- Crosshair tooltip -->
+        <div id="chartTooltip" style="display:none;position:absolute;background:rgba(14,14,14,0.95);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--text);pointer-events:none;z-index:50;white-space:nowrap"></div>
       </div>
     </div>
 
@@ -841,153 +859,19 @@ async function fetchData(){
 // ── CANDLESTICK CHART ──
 let ohlcData = [];
 
-function renderChart(candles, ema9Val, ema21Val) {
-  if (!candles || candles.length < 2) return;
-  ohlcData = candles;
-
-  const canvas = document.getElementById('candleChart');
-  if (!canvas) return;
-
-  const dpr    = window.devicePixelRatio || 1;
-  const W      = Math.round(canvas.getBoundingClientRect().width) || canvas.parentElement?.getBoundingClientRect().width || 400;
-  const H      = 180;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, W, H);
-
-  const pad = { top: 10, bottom: 24, left: 8, right: 8 };
-  const cW  = W - pad.left - pad.right;
-  const cH  = H - pad.top  - pad.bottom;
-
-  // Price range
-  const highs  = candles.map(c => parseFloat(c[2]));
-  const lows   = candles.map(c => parseFloat(c[3]));
-  const minP   = Math.min(...lows)  * 0.9995;
-  const maxP   = Math.max(...highs) * 1.0005;
-  const range  = maxP - minP;
-
-  const toY = p => pad.top + cH * (1 - (p - minP) / range);
-  const toX = i => pad.left + (i / (candles.length - 1)) * cW;
-
-  // Background grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth   = 1;
-  for (let j = 0; j <= 4; j++) {
-    const y = pad.top + (j / 4) * cH;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
-    const price = maxP - (j / 4) * range;
-    ctx.fillStyle = '#444';
-    ctx.font = `${9 * dpr / dpr}px Share Tech Mono, monospace`;
-    ctx.fillText('$' + price.toFixed(6), W - pad.right - 72, y - 2);
-  }
-
-  const barW = Math.max(1, (cW / candles.length) * 0.6);
-
-  // Draw candles
-  candles.forEach((c, i) => {
-    const open  = parseFloat(c[1]);
-    const high  = parseFloat(c[2]);
-    const low   = parseFloat(c[3]);
-    const close = parseFloat(c[4]);
-    const x     = toX(i);
-    const bull  = close >= open;
-    const color = bull ? '#3ddc84' : '#ff4d4d';
-
-    // Wick
-    ctx.strokeStyle = color;
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, toY(high));
-    ctx.lineTo(x, toY(low));
-    ctx.stroke();
-
-    // Body
-    const bodyTop = toY(Math.max(open, close));
-    const bodyH   = Math.max(1, Math.abs(toY(open) - toY(close)));
-    ctx.fillStyle = color;
-    ctx.fillRect(x - barW / 2, bodyTop, barW, bodyH);
-  });
-
-  // EMA9 line
-  if (ema9Val) {
-    ctx.strokeStyle = '#f5a623';
-    ctx.lineWidth   = 1.5;
-    ctx.setLineDash([3, 2]);
-    ctx.beginPath();
-    // Compute EMA9 for each candle
-    const closes = candles.map(c => parseFloat(c[4]));
-    const k9 = 2 / (9 + 1);
-    let ema = closes.slice(0, 9).reduce((s, p) => s + p, 0) / 9;
-    closes.forEach((p, i) => {
-      if (i >= 9) ema = p * k9 + ema * (1 - k9);
-      if (i >= 8) {
-        const x = toX(i);
-        const y = toY(ema);
-        i === 8 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // EMA21 line
-  if (ema21Val) {
-    ctx.strokeStyle = '#a78bfa';
-    ctx.lineWidth   = 1.5;
-    ctx.setLineDash([3, 2]);
-    ctx.beginPath();
-    const closes = candles.map(c => parseFloat(c[4]));
-    const k21 = 2 / (21 + 1);
-    let ema21 = closes.slice(0, 21).reduce((s, p) => s + p, 0) / 21;
-    closes.forEach((p, i) => {
-      if (i >= 21) ema21 = p * k21 + ema21 * (1 - k21);
-      if (i >= 20) {
-        const x = toX(i);
-        const y = toY(ema21);
-        i === 20 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // X-axis labels (every 8 candles)
-  ctx.fillStyle = '#444';
-  ctx.font = '9px Share Tech Mono, monospace';
-  candles.forEach((c, i) => {
-    if (i % 8 === 0) {
-      const t = new Date(c[0] * 1000);
-      const label = t.getHours().toString().padStart(2, '0') + ':00';
-      ctx.fillText(label, toX(i) - 12, H - 6);
-    }
-  });
-}
-
 
 // ── BTC NETWORK CONTEXT ──
 function renderBTC(btc) {
   if (!btc) return;
-  // Price
   document.getElementById('btcPrice').textContent = btc.btcPrice
     ? '$' + btc.btcPrice.toLocaleString('en', {maximumFractionDigits:0})
     : '—';
-  // Fees
-  document.getElementById('btcFeeFast').textContent = btc.fees?.fast + ' sat/vB';
-  document.getElementById('btcFeeMed').textContent  = btc.fees?.medium + ' sat/vB';
-  // Last block
+  document.getElementById('btcFeeFast').textContent = (btc.fees?.fast || '—') + ' sat/vB';
+  document.getElementById('btcFeeMed').textContent  = (btc.fees?.medium || '—') + ' sat/vB';
   const lb = btc.lastBlock;
-  if (lb) {
-    const ago = Math.round((Date.now()/1000 - lb.time) / 60);
-    document.getElementById('btcBlock').textContent = `#${lb.height.toLocaleString()}`;
-  }
-  // Blocks
+  if (lb) document.getElementById('btcBlock').textContent = '#' + lb.height.toLocaleString();
   const blocksEl = document.getElementById('btcBlocks');
-  if (btc.mempool?.blocks) {
+  if (btc.mempool?.blocks && blocksEl) {
     blocksEl.innerHTML = btc.mempool.blocks.map(b => {
       const ago = Math.round((Date.now()/1000 - b.time) / 60);
       return `<div style="background:var(--bg3);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">
@@ -998,6 +882,314 @@ function renderBTC(btc) {
     }).join('');
   }
 }
+
+// ── CHART STATE ──
+let currentTF = 60;
+let lastOHLC  = null;
+let lastEma9  = null;
+let lastEma21 = null;
+let lastPrice = null;
+
+function setTimeframe(tf) {
+  currentTF = tf;
+  [15,60,240].forEach(t => {
+    const btn = document.getElementById('tf'+t);
+    if (!btn) return;
+    if (t === tf) {
+      btn.style.borderColor = 'rgba(245,166,35,0.4)';
+      btn.style.background  = 'rgba(245,166,35,0.1)';
+      btn.style.color       = 'var(--gold)';
+    } else {
+      btn.style.borderColor = 'var(--border2)';
+      btn.style.background  = 'transparent';
+      btn.style.color       = 'var(--dim)';
+    }
+  });
+  fetchTFData(tf);
+}
+
+async function fetchTFData(tf) {
+  try {
+    const res  = await fetch(`${API}/api/ohlc?interval=${tf}`);
+    const data = await res.json();
+    if (data.candles) {
+      lastOHLC = data.candles;
+      renderChart(lastOHLC, lastEma9, lastEma21, lastPrice);
+    }
+  } catch(e) { console.warn('[chart tf]', e); }
+}
+
+function calcBollinger(closes, period=20, stdMult=2) {
+  const result = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { result.push(null); continue; }
+    const slice = closes.slice(i - period + 1, i + 1);
+    const mean  = slice.reduce((s,p) => s+p, 0) / period;
+    const std   = Math.sqrt(slice.reduce((s,p) => s + Math.pow(p-mean,2), 0) / period);
+    result.push({ mid: mean, upper: mean + stdMult*std, lower: mean - stdMult*std });
+  }
+  return result;
+}
+
+function calcRSISeries(closes, period=14) {
+  const rsi = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return rsi;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i-1];
+    if (diff >= 0) gains += diff; else losses -= diff;
+  }
+  let avgG = gains/period, avgL = losses/period;
+  rsi[period] = avgL === 0 ? 100 : 100 - 100/(1 + avgG/avgL);
+  for (let i = period+1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    const g = diff >= 0 ? diff : 0;
+    const l = diff < 0 ? -diff : 0;
+    avgG = (avgG * (period-1) + g) / period;
+    avgL = (avgL * (period-1) + l) / period;
+    rsi[i] = avgL === 0 ? 100 : parseFloat((100 - 100/(1 + avgG/avgL)).toFixed(2));
+  }
+  return rsi;
+}
+
+function renderChart(candles, ema9Val, ema21Val, currentPrice) {
+  if (!candles || candles.length < 2) return;
+  const closes = candles.map(c => parseFloat(c[4]));
+
+  // ── SETUP ──
+  const canvas = document.getElementById('candleChart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W   = Math.round(canvas.getBoundingClientRect().width) || 600;
+
+  const setupCanvas = (el, h) => {
+    el.width  = W * dpr; el.height = h * dpr;
+    el.style.width = W+'px'; el.style.height = h+'px';
+    const ctx = el.getContext('2d'); ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, h); return ctx;
+  };
+
+  const H    = 200;
+  const ctx  = setupCanvas(canvas, H);
+  const pad  = { top: 10, bottom: 20, left: 8, right: 76 };
+  const cW   = W - pad.left - pad.right;
+  const cH   = H - pad.top  - pad.bottom;
+
+  const highs = candles.map(c => parseFloat(c[2]));
+  const lows  = candles.map(c => parseFloat(c[3]));
+  const boll  = calcBollinger(closes);
+  const bollUpper = boll.map(b => b?.upper).filter(Boolean);
+  const bollLower = boll.map(b => b?.lower).filter(Boolean);
+  const allUpper  = [...highs, ...bollUpper];
+  const allLower  = [...lows,  ...bollLower];
+  const minP  = Math.min(...allLower) * 0.9993;
+  const maxP  = Math.max(...allUpper) * 1.0007;
+  const range = maxP - minP;
+  const n     = candles.length;
+  const barW  = Math.max(1.5, (cW / n) * 0.6);
+
+  const toY = p => pad.top + cH * (1 - (p - minP) / range);
+  const toX = i => pad.left + (i / (n-1)) * cW;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+  for (let j = 0; j <= 4; j++) {
+    const y = pad.top + (j/4) * cH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right + 4, y); ctx.stroke();
+    ctx.fillStyle = '#444'; ctx.font = '9px monospace';
+    ctx.fillText('$' + (maxP - (j/4)*range).toFixed(6), W - pad.right + 6, y + 3);
+  }
+
+  // Bollinger Bands
+  ctx.beginPath();
+  boll.forEach((b, i) => { if(!b) return; const x=toX(i); i===boll.findIndex(v=>v)?ctx.moveTo(x,toY(b.upper)):ctx.lineTo(x,toY(b.upper)); });
+  boll.slice().reverse().forEach((b, ri) => { if(!b) return; const i=n-1-ri; ctx.lineTo(toX(i),toY(b.lower)); });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(167,139,250,0.06)'; ctx.fill();
+
+  // Bollinger upper line
+  ctx.strokeStyle = 'rgba(167,139,250,0.4)'; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+  ctx.beginPath();
+  let first = true;
+  boll.forEach((b,i) => { if(!b) return; first?(ctx.moveTo(toX(i),toY(b.upper)),first=false):ctx.lineTo(toX(i),toY(b.upper)); });
+  ctx.stroke();
+
+  // Bollinger lower line
+  first = true;
+  ctx.beginPath();
+  boll.forEach((b,i) => { if(!b) return; first?(ctx.moveTo(toX(i),toY(b.lower)),first=false):ctx.lineTo(toX(i),toY(b.lower)); });
+  ctx.stroke();
+
+  // Bollinger mid (SMA20)
+  first = true;
+  ctx.strokeStyle = 'rgba(167,139,250,0.2)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  boll.forEach((b,i) => { if(!b) return; first?(ctx.moveTo(toX(i),toY(b.mid)),first=false):ctx.lineTo(toX(i),toY(b.mid)); });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Candles
+  candles.forEach((c, i) => {
+    const open=parseFloat(c[1]), high=parseFloat(c[2]), low=parseFloat(c[3]), close=parseFloat(c[4]);
+    const x=toX(i), bull=close>=open, color=bull?'#3ddc84':'#ff4d4d';
+    ctx.strokeStyle=color; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,toY(high)); ctx.lineTo(x,toY(low)); ctx.stroke();
+    const bodyTop=toY(Math.max(open,close)), bodyH=Math.max(1.5,Math.abs(toY(open)-toY(close)));
+    ctx.fillStyle=color; ctx.fillRect(x-barW/2, bodyTop, barW, bodyH);
+  });
+
+  // EMA9
+  if (closes.length >= 9) {
+    const k=2/(9+1); let ema=closes.slice(0,9).reduce((s,p)=>s+p,0)/9;
+    ctx.strokeStyle='#f5a623'; ctx.lineWidth=1.5; ctx.setLineDash([3,2]); ctx.beginPath();
+    closes.forEach((p,i) => { if(i>=9) ema=p*k+ema*(1-k); if(i>=8){const x=toX(i),y=toY(ema); i===8?ctx.moveTo(x,y):ctx.lineTo(x,y);} });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // EMA21
+  if (closes.length >= 21) {
+    const k=2/(21+1); let ema=closes.slice(0,21).reduce((s,p)=>s+p,0)/21;
+    ctx.strokeStyle='#a78bfa'; ctx.lineWidth=1.5; ctx.setLineDash([3,2]); ctx.beginPath();
+    closes.forEach((p,i) => { if(i>=21) ema=p*k+ema*(1-k); if(i>=20){const x=toX(i),y=toY(ema); i===20?ctx.moveTo(x,y):ctx.lineTo(x,y);} });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // Current price line
+  if (currentPrice && currentPrice >= minP && currentPrice <= maxP) {
+    const py = toY(currentPrice);
+    ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(pad.left, py); ctx.lineTo(W-pad.right+4, py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 9px monospace';
+    ctx.fillText('$'+currentPrice.toFixed(6), W-pad.right+6, py+3);
+  }
+
+  // X labels
+  ctx.fillStyle='#444'; ctx.font='9px monospace';
+  const step = Math.ceil(n/6);
+  candles.forEach((c,i) => {
+    if (i % step === 0) {
+      const t=new Date(c[0]*1000);
+      const label = currentTF===15 ? t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0') : t.getHours().toString().padStart(2,'0')+':00';
+      ctx.fillText(label, toX(i)-14, H-4);
+    }
+  });
+
+  // ── VOLUME ──
+  const vc = document.getElementById('volumeChart');
+  if (vc) {
+    const vctx = setupCanvas(vc, 40);
+    const vols = candles.map(c=>parseFloat(c[6]));
+    const maxVol = Math.max(...vols);
+    candles.forEach((c,i) => {
+      const vol=parseFloat(c[6]), bull=parseFloat(c[4])>=parseFloat(c[1]);
+      const bH=Math.max(1,(vol/maxVol)*34);
+      vctx.fillStyle=bull?'rgba(61,220,132,0.4)':'rgba(255,77,77,0.4)';
+      vctx.fillRect(toX(i)-barW/2, 40-bH, barW, bH);
+    });
+  }
+
+  // ── RSI PANEL ──
+  const rc = document.getElementById('rsiChart');
+  if (rc) {
+    const rH = 60;
+    const rctx = setupCanvas(rc, rH);
+    const rpad = { top: 4, bottom: 4, left: pad.left, right: pad.right };
+    const rW2  = W - rpad.left - rpad.right;
+    const rH2  = rH - rpad.top - rpad.bottom;
+    const rsiSeries = calcRSISeries(closes);
+
+    // Background zones
+    const y70 = rpad.top + rH2 * (1 - (70-0)/100);
+    const y30 = rpad.top + rH2 * (1 - (30-0)/100);
+    rctx.fillStyle = 'rgba(255,77,77,0.06)';
+    rctx.fillRect(rpad.left, rpad.top, rW2, y70 - rpad.top);
+    rctx.fillStyle = 'rgba(61,220,132,0.06)';
+    rctx.fillRect(rpad.left, y30, rW2, rH - rpad.bottom - y30);
+
+    // Level lines 30/70
+    rctx.strokeStyle='rgba(61,220,132,0.3)'; rctx.lineWidth=1; rctx.setLineDash([2,3]);
+    rctx.beginPath(); rctx.moveTo(rpad.left,y30); rctx.lineTo(W-rpad.right,y30); rctx.stroke();
+    rctx.strokeStyle='rgba(255,77,77,0.3)';
+    rctx.beginPath(); rctx.moveTo(rpad.left,y70); rctx.lineTo(W-rpad.right,y70); rctx.stroke();
+    rctx.setLineDash([]);
+
+    // Labels
+    rctx.fillStyle='rgba(61,220,132,0.5)'; rctx.font='8px monospace';
+    rctx.fillText('30', W-rpad.right+6, y30+3);
+    rctx.fillStyle='rgba(255,77,77,0.5)';
+    rctx.fillText('70', W-rpad.right+6, y70+3);
+
+    // RSI line
+    const toRY = v => rpad.top + rH2*(1-v/100);
+    const toRX = i => rpad.left + (i/(n-1))*rW2;
+    rctx.strokeStyle='#f5a623'; rctx.lineWidth=1.5;
+    rctx.beginPath();
+    let rFirst=true;
+    rsiSeries.forEach((v,i) => {
+      if(v===null) return;
+      const x=toRX(i), y=toRY(v);
+      rFirst?(rctx.moveTo(x,y),rFirst=false):rctx.lineTo(x,y);
+    });
+    rctx.stroke();
+
+    // Last RSI value
+    const lastRSI = rsiSeries.filter(v=>v!==null).at(-1);
+    if (lastRSI) {
+      const col = lastRSI > 70 ? '#ff4d4d' : lastRSI < 30 ? '#3ddc84' : '#f5a623';
+      rctx.fillStyle=col; rctx.font='bold 9px monospace';
+      rctx.fillText(lastRSI.toFixed(0), W-rpad.right+6, toRY(lastRSI)+3);
+    }
+  }
+
+  // ── CROSSHAIR ──
+  setupCrosshair(canvas, candles, toX, toY, barW, pad, W, H);
+}
+
+function setupCrosshair(canvas, candles, toX, toY, barW, pad, W, H) {
+  canvas.onmousemove = (e) => {
+    const rect    = canvas.getBoundingClientRect();
+    const mx      = e.clientX - rect.left;
+    const tooltip = document.getElementById('chartTooltip');
+    if (!tooltip) return;
+
+    // Find nearest candle
+    let nearest = 0, minDist = Infinity;
+    candles.forEach((c, i) => {
+      const dist = Math.abs(toX(i) - mx);
+      if (dist < minDist) { minDist = dist; nearest = i; }
+    });
+
+    if (minDist > barW * 3) { tooltip.style.display = 'none'; return; }
+
+    const c     = candles[nearest];
+    const open  = parseFloat(c[1]);
+    const high  = parseFloat(c[2]);
+    const low   = parseFloat(c[3]);
+    const close = parseFloat(c[4]);
+    const vol   = parseFloat(c[6]);
+    const bull  = close >= open;
+    const time  = new Date(c[0]*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+    tooltip.style.display = 'block';
+    tooltip.style.left    = (toX(nearest) + 12) + 'px';
+    tooltip.style.top     = '10px';
+    tooltip.innerHTML = `
+      <div style="color:var(--dim);margin-bottom:4px">${time}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
+        <span style="color:var(--dim)">O</span><span style="color:${bull?'#3ddc84':'#ff4d4d'}">${open.toFixed(6)}</span>
+        <span style="color:var(--dim)">H</span><span style="color:#3ddc84">${high.toFixed(6)}</span>
+        <span style="color:var(--dim)">L</span><span style="color:#ff4d4d">${low.toFixed(6)}</span>
+        <span style="color:var(--dim)">C</span><span style="color:${bull?'#3ddc84':'#ff4d4d'}">${close.toFixed(6)}</span>
+        <span style="color:var(--dim)">V</span><span style="color:var(--dim)">${(vol/1e6).toFixed(2)}M</span>
+      </div>`;
+  };
+  canvas.onmouseleave = () => {
+    const tooltip = document.getElementById('chartTooltip');
+    if (tooltip) tooltip.style.display = 'none';
+  };
+}
+
+
 
 // ── TRADING MODE STATE ──
 let currentMode = 'paper';
