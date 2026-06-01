@@ -243,6 +243,70 @@ The goal: give the **$DOG Army** a free, open-source intelligence and paper trad
 
 ---
 
+
+---
+
+## 🎯 For Kraken Reviewers
+
+This section addresses what the Kraken Agent Zero jury evaluates.
+
+### How we use Kraken CLI
+
+Every data point in the dashboard comes exclusively from Kraken CLI:
+
+```bash
+kraken ticker DOGUSD -o json        # price, bid, ask, volume, VWAP
+kraken orderbook DOGUSD -o json     # order book depth, wall detection
+kraken trades DOGUSD -o json        # recent trades, whale detection
+kraken ohlc DOGUSD --interval 60    # hourly candles for RSI + EMA
+kraken paper init                   # paper account initialization
+kraken paper buy/sell               # paper trade execution
+kraken paper status/history/balance # paper portfolio state
+```
+
+No third-party market APIs. No external data sources. Kraken CLI is the sole data layer.
+
+### What makes dog-intel different
+
+| Feature | Typical pattern | dog-intel |
+|---------|----------------|-----------|
+| LLM in decision loop | Yes | ❌ Deterministic Pack Index |
+| Data source | REST API / websocket | ✅ Kraken CLI exclusively |
+| Dashboard | Local only | ✅ Live at dog-intel.onrender.com |
+| Mobile support | None | ✅ Fully responsive |
+| Candlestick chart | Rarely | ✅ 48h OHLC with EMA overlay |
+| RSI(14) + EMA crossover | Basic | ✅ From real hourly candles |
+| Whale detection | None | ✅ Volume-weighted ≥ 500K DOG |
+| Portfolio viewer | None | ✅ Real Kraken account integration |
+| Deploy | Local only | ✅ Docker + Render, zero config |
+
+### Evaluation criteria — our case
+
+**Innovation & Originality**
+The Pack Index combines liquidity, RSI-based momentum, risk-inverted wall detection, and volume-weighted whale scoring into a single deterministic 0-100 signal. No LLM in the decision loop — pure math on live Kraken data.
+
+**Technical Execution**
+Zero npm dependencies in the backend — Node.js native `http` module only. Kraken CLI called via `execSync` with `--api-secret-stdin` for security. Docker deploy with automatic Kraken CLI Linux binary installation.
+
+**Kraken CLI Usage**
+8 distinct CLI commands used across 3 endpoints. OHLC data drives RSI(14) and EMA(9/21) calculation. Paper trading auto-initialized on server start.
+
+**Clarity & Presentation**
+Live at **https://dog-intel.onrender.com** — open in any browser, no installation required. Mobile responsive. Works on iPhone on the same WiFi network via local IP.
+
+**Practical Utility**
+Built for the $DOG Army: the community that lives on Kraken. Free, open source, runs locally or online with zero cloud dependencies beyond Kraken CLI. Real user feedback drove the feature set.
+
+### Files to inspect
+
+| File | What it does |
+|------|-------------|
+| `server.js` | API server — zero dependencies, serves HTML + data |
+| `decision-engine.js` | Pack Index, RSI, EMA, whale scoring |
+| `dog-intel.js` | CLI intelligence report (terminal mode) |
+| `index.html` | Dashboard — candlestick chart, paper trading, portfolio viewer |
+| `Dockerfile` | Docker deploy — installs Kraken CLI Linux binary |
+
 ## Submission
 
 🐦 [X post](https://x.com/Ra1nBlack/status/2058219061142589483)
