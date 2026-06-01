@@ -354,6 +354,21 @@
       </div>
     </div>
 
+
+    <!-- CANDLESTICK CHART -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <span class="card-title">Price Chart — 48h Hourly</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">
+          <span style="color:var(--gold)">━</span> EMA9 &nbsp;
+          <span style="color:#a78bfa">━</span> EMA21
+        </span>
+      </div>
+      <div class="card-body" style="padding:12px 16px">
+        <canvas id="candleChart" style="width:100%;height:180px;display:block"></canvas>
+      </div>
+    </div>
+
     <!-- ── AGENT PANEL ── -->
     <div class="agent-panel">
 
@@ -515,7 +530,7 @@
   <span>DOG•GO•TO•THE•MOON INTELLIGENCE · BUILT WITH KRAKEN CLI</span>
   <span>Data refreshes every 60s · <span id="footerTs">—</span></span>
   <span style="grid-column:1/-1;text-align:center;color:var(--dim2);font-size:9px;margin-top:6px">
-    This tool does not collect, store, or transmit any personal data. 
+    This tool does not collect, store, or transmit any personal data.
     API credentials are used in-memory only and never stored. Not financial advice.
   </span>
 </footer>
@@ -622,10 +637,23 @@ function render(d){
   document.getElementById('statBuyPct').textContent = `${whales.buyPressure}%`;
   document.getElementById('statBuyPct').style.color = whales.buyPressure > 50 ? 'var(--green)' : 'var(--red)';
 
-  // Candlestick chart
-  try {
-    if(d.ohlc && d.ohlc.length > 2) renderChart(d.ohlc, packIndex?.indicators?.ema9, packIndex?.indicators?.ema21);
-  } catch(e) { console.warn('[chart]', e); }
+  // Candlestick chart — delay to ensure canvas is visible and has width
+  if(d.ohlc && d.ohlc.length > 2) {
+    const drawChart = () => {
+      try {
+        const canvas = document.getElementById('candleChart');
+        if (!canvas) return;
+        // Force layout recalc
+        const w = canvas.getBoundingClientRect().width || canvas.parentElement?.getBoundingClientRect().width;
+        if (w > 0) {
+          renderChart(d.ohlc, packIndex?.indicators?.ema9, packIndex?.indicators?.ema21);
+        } else {
+          setTimeout(drawChart, 200);
+        }
+      } catch(e) { console.warn('[chart]', e); }
+    };
+    setTimeout(drawChart, 50);
+  }
 
   // Pack Index Gauge
   if(packIndex){
@@ -798,7 +826,7 @@ function renderChart(candles, ema9Val, ema21Val) {
   if (!canvas) return;
 
   const dpr    = window.devicePixelRatio || 1;
-  const W      = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 400;
+  const W      = Math.round(canvas.getBoundingClientRect().width) || canvas.parentElement?.getBoundingClientRect().width || 400;
   const H      = 180;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
@@ -921,7 +949,7 @@ function renderChart(candles, ema9Val, ema21Val) {
 let currentMode = 'paper';
 
 // Detect if running locally or on Render
-const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname) 
+const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname)
   || window.location.hostname.startsWith('192.168.')
   || window.location.hostname.startsWith('10.');
 
