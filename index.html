@@ -622,6 +622,9 @@ function render(d){
   document.getElementById('statBuyPct').textContent = `${whales.buyPressure}%`;
   document.getElementById('statBuyPct').style.color = whales.buyPressure > 50 ? 'var(--green)' : 'var(--red)';
 
+  // Candlestick chart
+  if(d.ohlc) renderChart(d.ohlc, packIndex?.indicators?.ema9, packIndex?.indicators?.ema21);
+
   // Pack Index Gauge
   if(packIndex){
     renderGauge(packIndex.total);
@@ -672,9 +675,11 @@ function render(d){
     document.getElementById('decisionReason').textContent = agent.reason;
     document.getElementById('decisionAction').textContent = `→ ${agent.action}`;
 
-    // Paper buttons always enabled — user decides when to trade
-    document.getElementById('btnBuy').disabled  = false;
-    document.getElementById('btnSell').disabled = false;
+    // Paper buttons always enabled locally, hidden on remote
+    if (isLocal) {
+      document.getElementById('btnBuy').disabled  = false;
+      document.getElementById('btnSell').disabled = false;
+    }
   }
 
   // Paper Portfolio
@@ -778,6 +783,137 @@ async function fetchData(){
   }
 }
 
+
+
+// ── CANDLESTICK CHART ──
+let ohlcData = [];
+
+function renderChart(candles, ema9Val, ema21Val) {
+  if (!candles || candles.length < 2) return;
+  ohlcData = candles;
+
+  const canvas = document.getElementById('candleChart');
+  if (!canvas) return;
+
+  const dpr    = window.devicePixelRatio || 1;
+  const W      = canvas.offsetWidth;
+  const H      = 180;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 10, bottom: 24, left: 8, right: 8 };
+  const cW  = W - pad.left - pad.right;
+  const cH  = H - pad.top  - pad.bottom;
+
+  // Price range
+  const highs  = candles.map(c => parseFloat(c[2]));
+  const lows   = candles.map(c => parseFloat(c[3]));
+  const minP   = Math.min(...lows)  * 0.9995;
+  const maxP   = Math.max(...highs) * 1.0005;
+  const range  = maxP - minP;
+
+  const toY = p => pad.top + cH * (1 - (p - minP) / range);
+  const toX = i => pad.left + (i / (candles.length - 1)) * cW;
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth   = 1;
+  for (let j = 0; j <= 4; j++) {
+    const y = pad.top + (j / 4) * cH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const price = maxP - (j / 4) * range;
+    ctx.fillStyle = '#444';
+    ctx.font = `${9 * dpr / dpr}px Share Tech Mono, monospace`;
+    ctx.fillText('$' + price.toFixed(6), W - pad.right - 72, y - 2);
+  }
+
+  const barW = Math.max(1, (cW / candles.length) * 0.6);
+
+  // Draw candles
+  candles.forEach((c, i) => {
+    const open  = parseFloat(c[1]);
+    const high  = parseFloat(c[2]);
+    const low   = parseFloat(c[3]);
+    const close = parseFloat(c[4]);
+    const x     = toX(i);
+    const bull  = close >= open;
+    const color = bull ? '#3ddc84' : '#ff4d4d';
+
+    // Wick
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, toY(high));
+    ctx.lineTo(x, toY(low));
+    ctx.stroke();
+
+    // Body
+    const bodyTop = toY(Math.max(open, close));
+    const bodyH   = Math.max(1, Math.abs(toY(open) - toY(close)));
+    ctx.fillStyle = color;
+    ctx.fillRect(x - barW / 2, bodyTop, barW, bodyH);
+  });
+
+  // EMA9 line
+  if (ema9Val) {
+    ctx.strokeStyle = '#f5a623';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    // Compute EMA9 for each candle
+    const closes = candles.map(c => parseFloat(c[4]));
+    const k9 = 2 / (9 + 1);
+    let ema = closes.slice(0, 9).reduce((s, p) => s + p, 0) / 9;
+    closes.forEach((p, i) => {
+      if (i >= 9) ema = p * k9 + ema * (1 - k9);
+      if (i >= 8) {
+        const x = toX(i);
+        const y = toY(ema);
+        i === 8 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // EMA21 line
+  if (ema21Val) {
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    const closes = candles.map(c => parseFloat(c[4]));
+    const k21 = 2 / (21 + 1);
+    let ema21 = closes.slice(0, 21).reduce((s, p) => s + p, 0) / 21;
+    closes.forEach((p, i) => {
+      if (i >= 21) ema21 = p * k21 + ema21 * (1 - k21);
+      if (i >= 20) {
+        const x = toX(i);
+        const y = toY(ema21);
+        i === 20 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // X-axis labels (every 8 candles)
+  ctx.fillStyle = '#444';
+  ctx.font = '9px Share Tech Mono, monospace';
+  candles.forEach((c, i) => {
+    if (i % 8 === 0) {
+      const t = new Date(c[0] * 1000);
+      const label = t.getHours().toString().padStart(2, '0') + ':00';
+      ctx.fillText(label, toX(i) - 12, H - 6);
+    }
+  });
+}
 
 // ── TRADING MODE STATE ──
 let currentMode = 'paper';

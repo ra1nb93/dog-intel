@@ -310,6 +310,7 @@ function buildReport() {
     },
     signals, packIndex, agent,
     paper: paper || null,
+    ohlc: ohlc ? ohlc.slice(-48) : null,
   };
 }
 
