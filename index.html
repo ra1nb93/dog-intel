@@ -68,14 +68,14 @@
     /* CARD */
     .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .card-header{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-    .card-title{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.2em;text-transform:uppercase;}
+    .card-title{font-family:var(--mono);font-size:9px;color:#888;letter-spacing:0.2em;text-transform:uppercase;font-weight:500;}
     .card-body{padding:14px 16px;}
 
     /* STATS ROW */
     .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;}
     .stat-cell{background:var(--bg2);padding:12px 16px;}
-    .stat-val{font-family:var(--display);font-size:20px;color:var(--text);letter-spacing:0.02em;}
-    .stat-label{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-top:3px;}
+    .stat-val{font-family:var(--display);font-size:22px;color:var(--text);letter-spacing:0.02em;line-height:1;}
+    .stat-label{font-family:var(--mono);font-size:8px;color:var(--dim2);letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;}
 
     /* ── AGENT PANEL ── */
     .agent-panel{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
@@ -271,24 +271,41 @@
     <!-- PRICE HERO -->
     <div class="price-hero">
       <div class="price-cell main">
-        <div class="cell-label">Last Price</div>
+        <div class="cell-label">DOG•GO•TO•THE•MOON · DOG/USD</div>
         <div class="price-big" id="priceMain">—</div>
         <div class="price-sub" id="priceSub">—</div>
-        <div id="changeBadge"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <div id="changeBadge"></div>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--dim)" id="priceVwapInline"></span>
+        </div>
       </div>
-      <div class="price-cell">
-        <div class="cell-label">24h Range</div>
-        <div style="font-family:var(--mono);font-size:12px;color:var(--green);margin-bottom:4px" id="priceHigh">—</div>
-        <div style="font-family:var(--mono);font-size:12px;color:var(--red)" id="priceLow">—</div>
-        <div style="margin-top:10px" class="cell-label">VWAP 24h</div>
-        <div style="font-family:var(--mono);font-size:12px;margin-top:3px" id="priceVwap">—</div>
+      <div class="price-cell" style="display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <div class="cell-label">24h High</div>
+          <div style="font-family:var(--display);font-size:22px;color:var(--green);letter-spacing:0.02em" id="priceHigh">—</div>
+        </div>
+        <div style="width:100%;height:1px;background:var(--border)"></div>
+        <div>
+          <div class="cell-label">24h Low</div>
+          <div style="font-family:var(--display);font-size:22px;color:var(--red);letter-spacing:0.02em" id="priceLow">—</div>
+        </div>
       </div>
-      <div class="price-cell">
-        <div class="cell-label">Volume 24h</div>
-        <div style="font-family:var(--display);font-size:26px;letter-spacing:0.02em" id="volMain">—</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:3px" id="volUsd">—</div>
-        <div style="margin-top:10px" class="cell-label">Trades 24h</div>
-        <div style="font-family:var(--mono);font-size:12px;margin-top:3px" id="tradeCount">—</div>
+      <div class="price-cell" style="display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <div class="cell-label">Volume 24h</div>
+          <div style="font-family:var(--display);font-size:26px;letter-spacing:0.02em" id="volMain">—</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px" id="volUsd">—</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div>
+            <div class="cell-label">Trades</div>
+            <div style="font-family:var(--mono);font-size:13px;margin-top:2px" id="tradeCount">—</div>
+          </div>
+          <div style="text-align:right">
+            <div class="cell-label">VWAP 24h</div>
+            <div style="font-family:var(--mono);font-size:13px;margin-top:2px" id="priceVwap">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -301,15 +318,6 @@
     </div>
 
     <!-- MODE + PAIR TOGGLE -->
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-      <div class="mode-toggle">
-        <button class="mode-btn active paper" id="btnModePaper" onclick="setMode('paper')">📄 PAPER</button>
-        <button class="mode-btn live" id="btnModeLive" onclick="setMode('live')">⚡ LIVE</button>
-      </div>
-
-    </div>
-
-
     <!-- CANDLESTICK CHART -->
     <div class="card" style="margin-bottom:14px;position:relative">
       <div class="card-header">
@@ -342,6 +350,16 @@
       </div>
     </div>
 
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <div class="mode-toggle">
+        <button class="mode-btn active paper" id="btnModePaper" onclick="setMode('paper')">📄 PAPER</button>
+        <button class="mode-btn live" id="btnModeLive" onclick="setMode('live')">⚡ LIVE</button>
+      </div>
+
+    </div>
+
+
     <!-- ── AGENT PANEL ── -->
     <div class="agent-panel" id="agentPanel">
 
@@ -364,13 +382,41 @@
                 <div class="gauge-label" id="gaugeLabel">PACK</div>
               </div>
             </div>
-            <div class="pack-sub">
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subLiq">—</div><div class="pack-sub-label">Liquidity</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subMom">—</div><div class="pack-sub-label">Momentum</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subRisk">—</div><div class="pack-sub-label">Risk</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subWhale">—</div><div class="pack-sub-label">Whale Vol</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subRsi">—</div><div class="pack-sub-label">RSI(14)</div></div>
-              <div class="pack-sub-item"><div class="pack-sub-val" id="subEma">—</div><div class="pack-sub-label">EMA Cross</div></div>
+            <!-- Sub-scores with progress bars -->
+            <div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-top:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px;letter-spacing:0.08em">LIQUIDITY</span>
+                <div style="flex:1;height:4px;background:var(--border2);border-radius:2px">
+                  <div id="barLiq" style="height:100%;border-radius:2px;background:var(--blue);transition:width 0.8s ease;width:0%"></div>
+                </div>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text);width:20px;text-align:right" id="subLiq">—</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px;letter-spacing:0.08em">MOMENTUM</span>
+                <div style="flex:1;height:4px;background:var(--border2);border-radius:2px">
+                  <div id="barMom" style="height:100%;border-radius:2px;background:var(--gold);transition:width 0.8s ease;width:0%"></div>
+                </div>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text);width:20px;text-align:right" id="subMom">—</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px;letter-spacing:0.08em">RISK</span>
+                <div style="flex:1;height:4px;background:var(--border2);border-radius:2px">
+                  <div id="barRisk" style="height:100%;border-radius:2px;background:var(--green);transition:width 0.8s ease;width:0%"></div>
+                </div>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text);width:20px;text-align:right" id="subRisk">—</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px;letter-spacing:0.08em">WHALE</span>
+                <div style="flex:1;height:4px;background:var(--border2);border-radius:2px">
+                  <div id="barWhale" style="height:100%;border-radius:2px;background:#a78bfa;transition:width 0.8s ease;width:0%"></div>
+                </div>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text);width:20px;text-align:right" id="subWhale">—</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px;padding-top:6px;border-top:1px solid var(--border)">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px">RSI(14)</span>
+                <span style="font-family:var(--mono);font-size:13px;font-weight:700" id="subRsi">—</span>
+                <span style="margin-left:auto;font-family:var(--mono);font-size:11px" id="subEma">—</span>
+              </div>
             </div>
           </div>
         </div>
@@ -642,18 +688,15 @@ function render(d){
 
   // Tape
   const ind = packIndex?.indicators;
+  const packColor = packIndex?.total>=65?'var(--green)':packIndex?.total>=40?'var(--gold)':'var(--red)';
+  const rsiColor  = ind?.rsi ? (ind.rsi<30?'var(--green)':ind.rsi>70?'var(--red)':'var(--text)') : 'var(--text)';
   document.getElementById('tapeInner').innerHTML = [
-    `<span class="tape-item"><span class="tape-label">DOG/USD</span><span class="tape-val ${isUp?'up':'down'}">$${price.last.toFixed(6)}</span></span>`,
-    `<span class="tape-item"><span class="tape-label">24H</span><span class="tape-val ${isUp?'up':'down'}">${isUp?'▲':'▼'} ${Math.abs(price.change24h)}%</span></span>`,
-    `<span class="tape-item"><span class="tape-label">HIGH</span><span class="tape-val up">$${price.high24h.toFixed(6)}</span></span>`,
-    `<span class="tape-item"><span class="tape-label">LOW</span><span class="tape-val down">$${price.low24h.toFixed(6)}</span></span>`,
+    `<span class="tape-item"><span class="tape-label">DOG/USD</span><span class="tape-val ${isUp?'up':'down'}">$${price.last.toFixed(6)} ${isUp?'▲':'▼'}${Math.abs(price.change24h)}%</span></span>`,
     `<span class="tape-item"><span class="tape-label">VOL</span><span class="tape-val">${fmt(volume.total24h)} DOG</span></span>`,
-    `<span class="tape-item"><span class="tape-label">PACK INDEX</span><span class="tape-val" style="color:${packIndex?.total>=65?'var(--green)':packIndex?.total>=40?'var(--gold)':'var(--red)'}">${packIndex?.total||'—'}/100</span></span>`,
-    ind?.rsi ? `<span class="tape-item"><span class="tape-label">RSI(14)</span><span class="tape-val" style="color:${ind.rsi<30?'var(--green)':ind.rsi>70?'var(--red)':'var(--text)'}">${ind.rsi.toFixed(0)}</span></span>` : '',
-    ind?.emaCross ? `<span class="tape-item"><span class="tape-label">EMA</span><span class="tape-val ${ind.emaCross==='GOLDEN'?'up':'down'}">${ind.emaCross}</span></span>` : '',
-    ind?.whaleBuyRatio !== null && ind?.whaleBuyRatio !== undefined ? `<span class="tape-item"><span class="tape-label">WHALE BUY%</span><span class="tape-val ${ind.whaleBuyRatio>50?'up':'down'}">${ind.whaleBuyRatio}%</span></span>` : '',
-    `<span class="tape-item"><span class="tape-label">DECISION</span><span class="tape-val">${agent?.decision||'—'}</span></span>`,
-    `<span class="tape-item"><span class="tape-label">P&L</span><span class="tape-val ${paper?.unrealized_pnl>=0?'up':'down'}">${paper?'$'+(paper.unrealized_pnl>=0?'+':'')+paper.unrealized_pnl.toFixed(2):'—'}</span></span>`,
+    `<span class="tape-item"><span class="tape-label">PACK</span><span class="tape-val" style="color:${packColor}">${packIndex?.total||'—'}/100 · ${agent?.decision||'—'}</span></span>`,
+    ind?.rsi ? `<span class="tape-item"><span class="tape-label">RSI</span><span class="tape-val" style="color:${rsiColor}">${ind.rsi.toFixed(0)} · EMA ${ind.emaCross||'—'}</span></span>` : '',
+    `<span class="tape-item"><span class="tape-label">SPREAD</span><span class="tape-val">${orderbook.spreadPct}%</span></span>`,
+    `<span class="tape-item"><span class="tape-label">BUY PRESSURE</span><span class="tape-val ${whales.buyPressure>50?'up':'down'}">${whales.buyPressure}%</span></span>`,
   ].filter(Boolean).join('');
 
   // Price hero
@@ -663,6 +706,8 @@ function render(d){
   document.getElementById('priceHigh').textContent = `H  $${price.high24h.toFixed(6)}`;
   document.getElementById('priceLow').textContent  = `L  $${price.low24h.toFixed(6)}`;
   document.getElementById('priceVwap').textContent = `$${price.vwap24h.toFixed(6)}`;
+  const vwapEl = document.getElementById('priceVwapInline');
+  if (vwapEl) vwapEl.textContent = `VWAP $${price.vwap24h.toFixed(6)}`;
   document.getElementById('volMain').textContent   = fmt(volume.total24h);
   document.getElementById('volUsd').textContent    = `≈ $${volume.usd24h.toLocaleString('en',{maximumFractionDigits:0})}`;
   document.getElementById('tradeCount').textContent = volume.trades24h.toLocaleString();
@@ -703,6 +748,12 @@ function render(d){
     document.getElementById('subMom').textContent   = packIndex.momentum;
     document.getElementById('subRisk').textContent  = packIndex.risk;
     document.getElementById('subWhale').textContent = packIndex.whale;
+    // Animate progress bars (max 25 each)
+    const setBar = (id, val) => { const el=document.getElementById(id); if(el) el.style.width=(val/25*100)+'%'; };
+    setBar('barLiq',   packIndex.liquidity);
+    setBar('barMom',   packIndex.momentum);
+    setBar('barRisk',  packIndex.risk);
+    setBar('barWhale', packIndex.whale);
 
     const ind = packIndex.indicators;
     if(ind){
@@ -1146,9 +1197,12 @@ function renderChart(candles, ema9Val, ema21Val, currentPrice) {
 }
 
 function setupCrosshair(canvas, candles, toX, toY, barW, pad, W, H) {
-  canvas.onmousemove = (e) => {
-    const rect    = canvas.getBoundingClientRect();
-    const mx      = e.clientX - rect.left;
+  const getX = e => {
+    const rect = canvas.getBoundingClientRect();
+    return (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  };
+  const showTip = (e) => {
+    const mx      = getX(e);
     const tooltip = document.getElementById('chartTooltip');
     if (!tooltip) return;
 
@@ -1183,6 +1237,9 @@ function setupCrosshair(canvas, candles, toX, toY, barW, pad, W, H) {
         <span style="color:var(--dim)">V</span><span style="color:var(--dim)">${(vol/1e6).toFixed(2)}M</span>
       </div>`;
   };
+  canvas.onmousemove  = showTip;
+  canvas.ontouchmove  = (e) => { e.preventDefault(); showTip(e); };
+  canvas.ontouchstart = (e) => { e.preventDefault(); showTip(e); };
   canvas.onmouseleave = () => {
     const tooltip = document.getElementById('chartTooltip');
     if (tooltip) tooltip.style.display = 'none';
