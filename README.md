@@ -309,7 +309,7 @@ Built for the $DOG Army: the community that lives on Kraken. Free, open source, 
 
 ## Submission
 
-🐦 [X post](https://x.com/Ra1nBlack/status/2058219061142589483)
+🐦 [X post](https://x.com/Ra1nBlack/status/2062637112088776836)
 
 ---
 
