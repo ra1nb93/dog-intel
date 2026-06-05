@@ -17,6 +17,13 @@
       --display:'Bebas Neue',sans-serif;
       --body:'DM Mono',monospace;
     }
+    [data-theme="light"]{
+      --bg:#f5f5f0;--bg2:#ebebeb;--bg3:#e2e2de;
+      --border:#d0d0c8;--border2:#bbbbb3;
+      --text:#1a1a1a;--dim:#666;--dim2:#999;
+    }
+    [data-theme="light"] body{background:#f5f5f0;}
+    [data-theme="light"] .tape{background:#e2e2de;}
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:13px;min-height:100vh;overflow-x:hidden;}
     body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1000;}
@@ -183,8 +190,10 @@
     .spinner{width:28px;height:28px;border-radius:50%;border:2px solid var(--border2);border-top-color:var(--gold);animation:spin 0.8s linear infinite;}
 
     /* FOOTER */
-    footer{margin-top:40px;padding:16px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+    footer{margin-top:40px;padding:16px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
     footer span{font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:0.1em;}
+    .btn-export{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;padding:5px 12px;border:1px solid var(--border2);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;transition:all 0.2s;}
+    .btn-export:hover{border-color:var(--gold);color:var(--gold);}
 
 
     /* ── LIVE TRADING STYLES ── */
@@ -251,10 +260,11 @@
     <div class="logo">🐕 DOG•GO•TO•THE•MOON</div>
     <div class="logo-sub">Intelligence + Trading Agent · Kraken CLI</div>
   </div>
-  <div class="live-badge">
+  <div class="live-badge" style="display:flex;align-items:center;gap:10px">
+    <button id="themeBtn" onclick="toggleTheme()" style="background:transparent;border:1px solid var(--border2);border-radius:5px;padding:2px 8px;font-family:var(--mono);font-size:11px;color:var(--dim);cursor:pointer;line-height:1.6">☀️</button>
     <div class="live-dot" id="liveDot"></div>
     <span id="liveStatus">CONNECTING</span>
-    <span id="liveTime" style="margin-left:10px;color:#333"></span>
+    <span id="liveTime" style="margin-left:4px;color:#333"></span>
   </div>
 </header>
 
@@ -416,6 +426,11 @@
                 <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px">RSI(14)</span>
                 <span style="font-family:var(--mono);font-size:13px;font-weight:700" id="subRsi">—</span>
                 <span style="margin-left:auto;font-family:var(--mono);font-size:11px" id="subEma">—</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:4px">
+                <span style="font-family:var(--mono);font-size:9px;color:var(--dim);width:64px">VOL IMPULSE</span>
+                <span style="font-family:var(--mono);font-size:11px" id="subVolImpulse">—</span>
+                <span style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dim)" id="subVolRatio">—</span>
               </div>
             </div>
           </div>
@@ -612,8 +627,12 @@
 
 <footer>
   <span>DOG•GO•TO•THE•MOON INTELLIGENCE · BUILT WITH KRAKEN CLI</span>
+  <div style="display:flex;gap:6px">
+    <button class="btn-export" onclick="exportJSON()">↓ JSON</button>
+    <button class="btn-export" onclick="exportCSV()">↓ CSV</button>
+  </div>
   <span>Data refreshes every 60s · <span id="footerTs">—</span></span>
-  <span style="grid-column:1/-1;text-align:center;color:var(--dim2);font-size:9px;margin-top:6px">
+  <span style="width:100%;text-align:center;color:var(--dim2);font-size:9px">
     This tool does not collect, store, or transmit any personal data. 
     API credentials are used in-memory only and never stored. Not financial advice.
   </span>
@@ -897,7 +916,9 @@ async function fetchData(){
   try{
     const res  = await fetch(`${API}/api/report`);
     if(!res.ok) throw new Error('bad response');
-    render(await res.json());
+    const reportData = await res.json();
+    lastReportData = reportData;
+    render(reportData);
     fetchPaperHistory();
   } catch(e){
     console.error('Fetch failed:', e);
@@ -910,6 +931,68 @@ async function fetchData(){
 // ── CANDLESTICK CHART ──
 let ohlcData = [];
 
+
+
+
+// ── THEME ──
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn  = document.getElementById('themeBtn');
+  if (html.getAttribute('data-theme') === 'light') {
+    html.removeAttribute('data-theme');
+    if (btn) btn.textContent = '☀️';
+    localStorage.setItem('dog-intel-theme', 'dark');
+  } else {
+    html.setAttribute('data-theme', 'light');
+    if (btn) btn.textContent = '🌙';
+    localStorage.setItem('dog-intel-theme', 'light');
+  }
+  // Redraw chart with new theme
+  if (lastOHLC) setTimeout(() => renderChart(lastOHLC, lastEma9, lastEma21, lastPrice, lastWhales), 50);
+}
+
+// Restore saved theme
+(function() {
+  const saved = localStorage.getItem('dog-intel-theme');
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    // btn not yet in DOM, will be set on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = '🌙';
+    });
+  }
+})();
+
+// ── EXPORT ──
+let lastReportData = null;
+
+function exportJSON() {
+  if (!lastReportData) { showNotif('❌ No data to export yet', 'error'); return; }
+  const blob = new Blob([JSON.stringify(lastReportData, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `dog-intel-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showNotif('✅ JSON exported', 'success');
+}
+
+function exportCSV() {
+  if (!lastReportData) { showNotif("No data to export", "error"); return; }
+  const d = lastReportData;
+  const header = ["timestamp","price","change24h","high24h","low24h","vwap24h","volume24h","spread_pct","buy_pressure","pack_index","rsi","ema_cross","decision"].join(",");
+  const vals   = [d.timestamp,d.price?.last,d.price?.change24h,d.price?.high24h,d.price?.low24h,d.price?.vwap24h,d.volume?.total24h,d.orderbook?.spreadPct,d.whales?.buyPressure,d.packIndex?.total,d.packIndex?.indicators?.rsi,d.packIndex?.indicators?.emaCross,d.agent?.decision].join(",");
+  const blob = new Blob([header + String.fromCharCode(10) + vals], {type:"text/csv"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "dog-intel-" + new Date().toISOString().slice(0,10) + ".csv";
+  a.click();
+  URL.revokeObjectURL(url);
+  showNotif("CSV exported", "success");
+}
 
 // ── BTC NETWORK CONTEXT ──
 function renderBTC(btc) {
@@ -935,11 +1018,12 @@ function renderBTC(btc) {
 }
 
 // ── CHART STATE ──
-let currentTF = 60;
-let lastOHLC  = null;
-let lastEma9  = null;
-let lastEma21 = null;
-let lastPrice = null;
+let currentTF  = 60;
+let lastOHLC   = null;
+let lastEma9   = null;
+let lastEma21  = null;
+let lastPrice  = null;
+let lastWhales = [];
 
 function setTimeframe(tf) {
   currentTF = tf;
@@ -965,9 +1049,26 @@ async function fetchTFData(tf) {
     const data = await res.json();
     if (data.candles) {
       lastOHLC = data.candles;
-      renderChart(lastOHLC, lastEma9, lastEma21, lastPrice);
+      renderChart(lastOHLC, lastEma9, lastEma21, lastPrice, lastWhales);
     }
   } catch(e) { console.warn('[chart tf]', e); }
+}
+
+
+function calcVolumeImpulse(candles, period=10) {
+  if (!candles || candles.length < period + 1) return null;
+  const vols    = candles.map(c => parseFloat(c[6]));
+  const lastVol = vols[vols.length - 1];
+  const sma     = vols.slice(-period - 1, -1).reduce((s, v) => s + v, 0) / period;
+  if (sma === 0) return null;
+  const ratio   = parseFloat((lastVol / sma).toFixed(2));
+  let label, color;
+  if (ratio >= 2.0)      { label = '🔥 EXTREME';  color = '#ff4d4d'; }
+  else if (ratio >= 1.5) { label = '⚡ HIGH';      color = '#f5a623'; }
+  else if (ratio >= 1.2) { label = '↑ ABOVE AVG'; color = '#3ddc84'; }
+  else if (ratio >= 0.8) { label = '→ NORMAL';    color = '#888'; }
+  else                   { label = '↓ LOW';        color = '#555'; }
+  return { ratio, label, color, sma, lastVol };
 }
 
 function calcBollinger(closes, period=20, stdMult=2) {
@@ -1003,7 +1104,7 @@ function calcRSISeries(closes, period=14) {
   return rsi;
 }
 
-function renderChart(candles, ema9Val, ema21Val, currentPrice) {
+function renderChart(candles, ema9Val, ema21Val, currentPrice, whaleTrades = []) {
   if (!candles || candles.length < 2) return;
   const closes = candles.map(c => parseFloat(c[4]));
 
@@ -1031,8 +1132,12 @@ function renderChart(candles, ema9Val, ema21Val, currentPrice) {
   const boll  = calcBollinger(closes);
   const bollUpper = boll.map(b => b?.upper).filter(Boolean);
   const bollLower = boll.map(b => b?.lower).filter(Boolean);
-  const allUpper  = [...highs, ...bollUpper];
-  const allLower  = [...lows,  ...bollLower];
+  // Clip extreme wicks using IQR to avoid scale distortion
+  const sortedHighs = [...highs].sort((a,b) => a-b);
+  const q75H = sortedHighs[Math.floor(sortedHighs.length*0.90)]; // 90th percentile
+  const clippedHighs = highs.map(h => Math.min(h, q75H * 1.03));
+  const allUpper  = [...clippedHighs, ...bollUpper];
+  const allLower  = [...lows, ...bollLower];
   const minP  = Math.min(...allLower) * 0.9993;
   const maxP  = Math.max(...allUpper) * 1.0007;
   const range = maxP - minP;
@@ -1088,6 +1193,58 @@ function renderChart(candles, ema9Val, ema21Val, currentPrice) {
     ctx.fillStyle=color; ctx.fillRect(x-barW/2, bodyTop, barW, bodyH);
   });
 
+
+  // ── WHALE MARKERS ──
+  const candleInterval = candles.length > 1 ? (candles[1][0] - candles[0][0]) : 3600;
+  const candleMin = Math.min(...candles.map(c => parseFloat(c[3])));
+  const candleMax = Math.max(...candles.map(c => parseFloat(c[2])));
+  const candleStart = candles[0][0];
+  const candleEnd   = candles[candles.length-1][0] + candleInterval;
+  whaleTrades.forEach(w => {
+    if (w.volume < 500_000) return; // ≥500K DOG
+    if (w.price < candleMin * 0.95 || w.price > candleMax * 1.05) return;
+    if (w.time < candleStart || w.time > candleEnd) return; // only within candle timerange
+    const wTime = w.time;
+    // Find matching candle index
+    let idx = -1;
+    for (let i = 0; i < candles.length; i++) {
+      const cTime = candles[i][0];
+      if (wTime >= cTime && wTime < cTime + candleInterval) { idx = i; break; }
+    }
+    if (idx === -1) return;
+
+    const x    = toX(idx);
+    const bull = w.side === 'BUY';
+    const col  = bull ? '#3ddc84' : '#ff4d4d';
+    const high = parseFloat(candles[idx][2]);
+    const low  = parseFloat(candles[idx][3]);
+    const size = Math.min(10, Math.max(5, w.volume / 1_000_000 * 2)); // size by volume
+
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.85;
+
+    if (bull) {
+      // Triangle pointing UP below the candle
+      const y = toY(low) + size + 4;
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x - size/2, y);
+      ctx.lineTo(x + size/2, y);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Triangle pointing DOWN above the candle
+      const y = toY(high) - size - 4;
+      ctx.beginPath();
+      ctx.moveTo(x, y + size);
+      ctx.lineTo(x - size/2, y);
+      ctx.lineTo(x + size/2, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  });
+
   // EMA9
   if (closes.length >= 9) {
     const k=2/(9+1); let ema=closes.slice(0,9).reduce((s,p)=>s+p,0)/9;
@@ -1128,13 +1285,23 @@ function renderChart(candles, ema9Val, ema21Val, currentPrice) {
   // ── VOLUME ──
   const vc = document.getElementById('volumeChart');
   if (vc) {
-    const vctx = setupCanvas(vc, 40);
-    const vols = candles.map(c=>parseFloat(c[6]));
+    const vctx  = setupCanvas(vc, 40);
+    const vols  = candles.map(c=>parseFloat(c[6]));
     const maxVol = Math.max(...vols);
+    const period = 10;
     candles.forEach((c,i) => {
-      const vol=parseFloat(c[6]), bull=parseFloat(c[4])>=parseFloat(c[1]);
-      const bH=Math.max(1,(vol/maxVol)*34);
-      vctx.fillStyle=bull?'rgba(61,220,132,0.4)':'rgba(255,77,77,0.4)';
+      const vol  = parseFloat(c[6]);
+      const bull = parseFloat(c[4]) >= parseFloat(c[1]);
+      const bH   = Math.max(1, (vol/maxVol)*34);
+      // Volume impulse: brighter if above SMA10
+      let alpha = 0.35;
+      if (i >= period) {
+        const sma = vols.slice(i-period, i).reduce((s,v)=>s+v,0) / period;
+        if (vol >= sma * 2.0)      alpha = 0.9;
+        else if (vol >= sma * 1.5) alpha = 0.7;
+        else if (vol >= sma * 1.2) alpha = 0.55;
+      }
+      vctx.fillStyle = bull ? `rgba(61,220,132,${alpha})` : `rgba(255,77,77,${alpha})`;
       vctx.fillRect(toX(i)-barW/2, 40-bH, barW, bH);
     });
   }
