@@ -433,12 +433,14 @@ async function buildReport() {
     console.warn("[fetch] failed: ticker=%s book=%s trades=%s", !!ticker, !!book, !!trades);
     return null;
   }
+  console.log("[fetch] market data OK, computing indicators...");
   const ohlc      = fetchOHLC();
   const paper     = fetchPaperStatus();
   const packIndex = computePackIndex(ticker, book, trades, ohlc);
   const agent     = decide(packIndex, ticker, book, trades, paper);
   const signals   = analyze(ticker, book, trades);
-  return {
+  console.log("[fetch] indicators OK, decision=%s score=%s", agent?.decision, packIndex?.total);
+  const report = {
     timestamp: new Date().toISOString(),
     price: {
       last: ticker.last, ask: ticker.ask, bid: ticker.bid,
