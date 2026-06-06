@@ -191,23 +191,37 @@ async function fetchBTCContext() {
 const TG_TOKEN   = process.env.TG_TOKEN;
 const TG_CHAT_ID = process.env.TG_CHAT_ID;
 
-let lastAlertState = { decision: null, rsiAlert: null };
+let lastAlertState = { decision: null, rsiAlert: null, lastSent: 0 };
+const ALERT_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes minimum between same alerts
 
-async function sendTelegram(msg) {
-  if (!TG_TOKEN || !TG_CHAT_ID) return;
+// In-memory set of user chat IDs (persists until server restart)
+const userChatIds = new Set();
+if (process.env.TG_CHAT_ID) userChatIds.add(process.env.TG_CHAT_ID);
+
+async function sendTelegram(msg, chatId) {
+  if (!TG_TOKEN) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TG_CHAT_ID,
-        text: msg,
-        parse_mode: 'HTML',
-      }),
+      body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
     });
-    console.log('[TELEGRAM] Sent:', msg.slice(0, 60));
+    console.log('[TELEGRAM] Sent to', chatId, ':', msg.slice(0, 50));
   } catch(e) {
     console.warn('[TELEGRAM] Failed:', e.message);
+  }
+}
+
+async function broadcastTelegram(msg) {
+  if (!TG_TOKEN || userChatIds.size === 0) return;
+  const now = Date.now();
+  if (now - lastAlertState.lastSent < ALERT_COOLDOWN_MS) {
+    console.log('[TELEGRAM] Cooldown active, skipping');
+    return;
+  }
+  lastAlertState.lastSent = now;
+  for (const chatId of userChatIds) {
+    await sendTelegram(msg, chatId);
   }
 }
 
@@ -221,7 +235,7 @@ function checkAlerts(report) {
   // Decision change alert
   if (dec && dec !== lastAlertState.decision) {
     if (dec === 'WATCH_BUY') {
-      sendTelegram(
+      broadcastTelegram(
         `🟢 <b>WATCH BUY</b> — DOG•GO•TO•THE•MOON
 ` +
         `Pack Index: ${score}/100
@@ -233,7 +247,7 @@ function checkAlerts(report) {
         `dog-intel.onrender.com`
       );
     } else if (dec === 'WATCH_SELL') {
-      sendTelegram(
+      broadcastTelegram(
         `🔴 <b>WATCH SELL</b> — DOG•GO•TO•THE•MOON
 ` +
         `Pack Index: ${score}/100
@@ -245,7 +259,7 @@ function checkAlerts(report) {
         `dog-intel.onrender.com`
       );
     } else if (dec === 'RISK_OFF') {
-      sendTelegram(
+      broadcastTelegram(
         `⛔ <b>RISK OFF</b> — Spread anomalo
 ` +
         `Spread: ${report.orderbook?.spreadPct}%
@@ -259,7 +273,7 @@ function checkAlerts(report) {
   // RSI alerts (one-shot, reset when crosses back)
   if (rsi) {
     if (rsi > 80 && lastAlertState.rsiAlert !== 'overbought') {
-      sendTelegram(
+      broadcastTelegram(
         `⚠️ <b>RSI OVERBOUGHT</b> — RSI ${rsi.toFixed(1)}
 ` +
         `DOG/USD: $${price?.last?.toFixed(6)}
@@ -268,7 +282,7 @@ function checkAlerts(report) {
       );
       lastAlertState.rsiAlert = 'overbought';
     } else if (rsi < 25 && lastAlertState.rsiAlert !== 'oversold') {
-      sendTelegram(
+      broadcastTelegram(
         `💎 <b>RSI OVERSOLD</b> — RSI ${rsi.toFixed(1)}
 ` +
         `DOG/USD: $${price?.last?.toFixed(6)}
@@ -535,6 +549,31 @@ const server = http.createServer(async (req, res) => {
   // GET /api/health
   if (req.method === "GET" && path === "/api/health")
     return json(res, 200, { status: "ok", ts: new Date().toISOString() });
+
+  // POST /api/telegram/register — register user chat ID for alerts
+  if (req.method === "POST" && path === "/api/telegram/register") {
+    const body = await readBody(req);
+    const chatId = body.chatId?.toString().trim();
+    if (!chatId || !/^\d+$/.test(chatId))
+      return json(res, 400, { error: "Invalid chat ID" });
+    if (!TG_TOKEN)
+      return json(res, 503, { error: "Telegram not configured on this server" });
+    // Test send
+    try {
+      await sendTelegram(
+        `🐕 <b>DOG Intel alerts activated!</b>
+You will receive WATCH_BUY, WATCH_SELL and RSI alerts.
+
+dog-intel.onrender.com`,
+        chatId
+      );
+      userChatIds.add(chatId);
+      console.log('[TELEGRAM] Registered chat ID:', chatId);
+      return json(res, 200, { ok: true, message: "Activated! Check your Telegram." });
+    } catch(e) {
+      return json(res, 400, { error: "Could not send message — check your chat ID" });
+    }
+  }
 
   // GET /api/ohlc?interval=15|60|240
   if (req.method === "GET" && path === "/api/ohlc") {

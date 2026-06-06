@@ -594,6 +594,36 @@
 </main>
 
 
+
+    <!-- TELEGRAM ALERTS -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <span class="card-title">🔔 Telegram Alerts</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">@dogintel_bot</span>
+      </div>
+      <div class="card-body" style="padding:14px 16px">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:10px;line-height:1.6">
+          Get notified on <span style="color:var(--green)">WATCH BUY</span>, 
+          <span style="color:var(--red)">WATCH SELL</span> and RSI extremes.
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:10px">
+          1. Write <code style="color:var(--gold)">/start</code> to 
+          <a href="https://t.me/dogintel_bot" target="_blank" style="color:var(--gold)">@dogintel_bot</a> on Telegram<br>
+          2. Copy the Chat ID the bot sends you<br>
+          3. Paste it below and activate
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="tgChatId" type="text" placeholder="Your Chat ID (e.g. 162041470)" 
+            style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--text);outline:none"/>
+          <button onclick="activateTelegram()" 
+            style="padding:8px 16px;border-radius:6px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(61,220,132,0.12);color:var(--green);border:1px solid rgba(61,220,132,0.3)">
+            Activate
+          </button>
+        </div>
+        <div id="tgStatus" style="font-family:var(--mono);font-size:10px;margin-top:8px;display:none"></div>
+      </div>
+    </div>
+
     <!-- BTC NETWORK CONTEXT -->
     <div class="card" style="margin-bottom:14px" id="btcPanel">
       <div class="card-header">
@@ -933,6 +963,50 @@ let ohlcData = [];
 
 
 
+
+
+// ── TELEGRAM REGISTRATION ──
+async function activateTelegram() {
+  const chatId = document.getElementById('tgChatId').value.trim();
+  const status = document.getElementById('tgStatus');
+  if (!chatId || !/^\d+$/.test(chatId)) {
+    status.style.display = 'block';
+    status.style.color = 'var(--red)';
+    status.textContent = '❌ Invalid Chat ID — numbers only';
+    return;
+  }
+  status.style.display = 'block';
+  status.style.color = 'var(--dim)';
+  status.textContent = '⏳ Activating...';
+  try {
+    const res  = await fetch(`${API}/api/telegram/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = '✅ ' + data.message;
+      localStorage.setItem('tg-chat-id', chatId);
+    } else {
+      status.style.color = 'var(--red)';
+      status.textContent = '❌ ' + data.error;
+    }
+  } catch(e) {
+    status.style.color = 'var(--red)';
+    status.textContent = '❌ Connection error';
+  }
+}
+
+// Restore saved chat ID
+(function() {
+  const saved = localStorage.getItem('tg-chat-id');
+  if (saved) {
+    const el = document.getElementById('tgChatId');
+    if (el) el.value = saved;
+  }
+})();
 
 // ── THEME ──
 function toggleTheme() {
