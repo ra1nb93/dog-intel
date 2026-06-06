@@ -14,15 +14,20 @@ A live intelligence and paper trading dashboard for the **DOG•GO•TO•THE•
 
 - 📈 Real-time price, volume, VWAP, 24h range
 - 🧠 **Pack Index** — proprietary 0-100 composite score
-- 📊 **RSI(14)** and **EMA(9/21) crossover** — calculated on real hourly OHLC candles
-- 🐋 Whale trade detection with **volume-weighted** scoring (≥ 500K DOG)
+- 📊 **Candlestick chart** — 15m/1h/4h with Bollinger Bands, EMA overlay, RSI panel, volume bars, whale markers and crosshair tooltip
+- 📐 **RSI(14)** and **EMA(9/21) crossover** — calculated on real OHLC candles
+- 🐋 Whale trade detection with **volume-weighted** scoring (≥ 500K DOG) — markers on chart
+- ⚡ **Volume Impulse** — volume vs SMA10, brighter bars when above average
 - 🧱 Order book wall detection (≥ 5M DOG)
-- ⚡ Buy/sell pressure analysis (last 100 trades)
 - 🤖 **Agent Decision** — WATCH_BUY / HOLD / WATCH_SELL / RISK_OFF
-- 📄 **Paper Trading** — simulate entries and exits, track P&L with $10,000 virtual balance
-- 🔑 **Live Portfolio Viewer** — connect your Kraken account to monitor your real DOG position, trade history, open orders and unrealized P&L
+- 📄 **Paper Trading** — simulate entries and exits, track P&L (local only)
+- 🔑 **Live Portfolio Viewer** — connect your Kraken account to monitor your real DOG position
+- ₿ **BTC Network Context** — BTC price, mempool fees, recent blocks via mempool.space
+- 🔔 **Telegram Alerts** — notifications on WATCH_BUY, WATCH_SELL, RSI overbought/oversold
+- ↓ **Export** — download report as JSON or CSV
+- ☀️ **Dark/Light mode** — toggle in header
 
-All market data is pulled directly from Kraken via the official **[Kraken CLI](https://www.kraken.com/kraken-cli)** — no third-party APIs, no middlemen.
+All market data is pulled directly from Kraken via the official **[Kraken CLI](https://www.kraken.com/kraken-cli)** — no third-party market APIs, no middlemen.
 
 ---
 
@@ -48,7 +53,25 @@ The Pack Index is a deterministic 0-100 score computed from four components:
 
 No LLM in the decision loop — pure deterministic math on live Kraken data.
 
-Paper BUY and SELL buttons are always enabled — the agent decision is a suggestion, not a blocker.
+---
+
+## Telegram Alerts
+
+The server sends Telegram notifications when:
+
+- 🟢 Decision changes to **WATCH_BUY**
+- 🔴 Decision changes to **WATCH_SELL**
+- ⛔ **RISK_OFF** triggered (spread anomaly)
+- ⚠️ **RSI > 80** (overbought)
+- 💎 **RSI < 25** (oversold)
+
+To enable, set environment variables:
+```bash
+TG_TOKEN=your_bot_token
+TG_CHAT_ID=your_chat_id
+```
+
+Create a bot via [@BotFather](https://t.me/BotFather) on Telegram.
 
 ---
 
@@ -56,11 +79,14 @@ Paper BUY and SELL buttons are always enabled — the agent decision is a sugges
 
 | Layer | Tech |
 |-------|------|
-| Data source | Kraken CLI (`ticker`, `orderbook`, `trades`, `ohlc`) |
+| Data source | Kraken CLI (`ticker`, `orderbook`, `trades`, `ohlc`, `paper`) |
+| BTC context | mempool.space public API |
 | Backend | Node.js (zero npm dependencies, native `http` module) |
 | Frontend | Vanilla HTML/CSS/JS — no build step |
+| Chart | Canvas API — candlesticks, BB, RSI, volume, whale markers |
 | Hosting | Render.com (free tier, Docker) |
 | Uptime | UptimeRobot ping every 5min |
+| Alerts | Telegram Bot API |
 | Refresh | Auto every 60s (server cache) + 30s client poll |
 | Mobile | Fully responsive, works on any device |
 
@@ -90,8 +116,8 @@ kraken --version
 git clone https://github.com/ra1nb93/dog-intel.git
 cd dog-intel
 
-# 2. Start the server
-node server.js
+# 2. Start the server (optional: with Telegram alerts)
+TG_TOKEN=your_token TG_CHAT_ID=your_chat_id node server.js
 
 # 3. Open the dashboard
 open http://localhost:3001
@@ -99,50 +125,20 @@ open http://localhost:3001
 
 **Mobile on same WiFi network:**
 ```bash
-# Find your local IP
-ipconfig getifaddr en0   # macOS
-
-# Open on phone
-http://YOUR_LOCAL_IP:3001
+ipconfig getifaddr en0   # find your local IP
+# Open on phone: http://YOUR_LOCAL_IP:3001
 ```
+
+**Paper trading note:** Paper trading is available locally only. On the live deployment, the dashboard shows intelligence + live portfolio viewer.
 
 ---
 
 ## CLI Usage
 
 ```bash
-# Human-readable report
-node dog-intel.js
-
-# JSON output
-node dog-intel.js --json
-
-# Auto-refresh every 60 seconds
-node dog-intel.js --watch
-```
-
-### Example output
-
-```
-────────────────────────────────────────────────────────────
-🐕  DOG•GO•TO•THE•MOON — Intelligence Report
-31/05/2026, 23:01:22
-────────────────────────────────────────────────────────────
-
-PRICE
-  Last     $0.000667  ▼ 1.19% 24h
-  Bid/Ask  $0.000667 / $0.000670
-  24h      H: $0.000715  L: $0.000657
-  VWAP 24h $0.000686
-
-PACK INDEX  51/100  trend →
-  Liquidity 19  Momentum 7  Risk 13  Whale 12
-  RSI(14)  51.38
-  EMA Cross  DEATH (EMA9 < EMA21)
-
-DECISION: HOLD
-  Pack Index 51/100 · RSI 51.38
-  → Wait for entry signal
+node dog-intel.js          # terminal report
+node dog-intel.js --json   # JSON output
+node dog-intel.js --watch  # auto-refresh every 60s
 ```
 
 ---
@@ -153,37 +149,26 @@ DECISION: HOLD
 |----------|--------|-------------|
 | `/` | GET | Dashboard HTML |
 | `/api/report` | GET | Full intelligence report (JSON, cached 60s) |
+| `/api/ohlc?interval=15\|60\|240` | GET | OHLC candles by timeframe |
+| `/api/btc` | GET | BTC network context (fees, blocks, price) |
 | `/api/paper/status` | GET | Paper account status + P&L |
 | `/api/paper/history` | GET | Paper trade history |
-| `/api/paper/buy` | POST | Execute paper buy ($500 default) |
+| `/api/paper/buy` | POST | Execute paper buy |
 | `/api/paper/sell` | POST | Execute paper sell |
 | `/api/live/portfolio` | POST | Real Kraken portfolio (read-only) |
 | `/api/health` | GET | Server health check |
-
-### Live Portfolio
-
-```bash
-curl -X POST https://dog-intel.onrender.com/api/live/portfolio \
-  -H "Content-Type: application/json" \
-  -d '{"apiKey":"YOUR_KEY","apiSecret":"YOUR_SECRET"}'
-```
-
-Returns: DOG balance, trade history, open orders, avg buy price, unrealized P&L.
-
-**Required API permissions:** Query Funds only. No trading permissions needed.
 
 ---
 
 ## Deploy (Docker + Render)
 
-The repo includes a `Dockerfile` that installs Node.js + Kraken CLI Linux binary.
-
 ```bash
-# Deploy on Render:
+# Render setup:
 # 1. Connect GitHub repo
 # 2. Language: Docker
 # 3. Instance: Free
-# 4. Deploy
+# 4. Environment variables: TG_TOKEN, TG_CHAT_ID (optional)
+# 5. Deploy
 ```
 
 Auto-deploys on every `git push` to main.
@@ -195,7 +180,7 @@ Auto-deploys on every `git push` to main.
 ```
 dog-intel/
 ├── README.md           ← you are here
-├── Dockerfile          ← Docker deploy config
+├── Dockerfile          ← Docker deploy (installs Kraken CLI Linux binary)
 ├── package.json        ← { "type": "module" }
 ├── server.js           ← API + HTML server (zero dependencies)
 ├── decision-engine.js  ← Pack Index, RSI, EMA, whale scoring
@@ -211,16 +196,19 @@ dog-intel/
 |-----------|-------|
 | Whale trade threshold | ≥ 500,000 DOG |
 | Order wall threshold | ≥ 5,000,000 DOG |
+| Volume Impulse period | SMA 10 |
 | WATCH_BUY trigger | Pack Index ≥ 65, RSI < 70 |
 | WATCH_SELL trigger | Pack Index ≤ 35 or RSI > 80 |
 | RISK_OFF trigger | Spread > 1% |
-| OHLC candles | 48h hourly (1h interval) |
+| OHLC intervals | 15m / 1h / 4h |
 | RSI period | 14 |
 | EMA periods | 9 and 21 |
+| Bollinger Bands | 20 period, 2σ |
 | Paper trade size | $500 USD |
 | Paper starting balance | $10,000 USD |
 | Cache TTL | 60s |
-| Server port | 3001 |
+| BTC context cache | 2 min |
+| Telegram alert cooldown | per decision change |
 
 ---
 
@@ -230,86 +218,77 @@ This tool does not collect, store, or transmit any personal data. API credential
 
 ---
 
-## Built for the Kraken CLI Agent Zero Competition
-
-This project was built as a submission for the **[Kraken CLI Agent Zero Promotion](https://support.kraken.com/articles/agent-zero-promotion)** — a $25,000 competition for the best builds using Kraken CLI.
-
-The goal: give the **$DOG Army** a free, open-source intelligence and paper trading tool that:
-- Runs locally or online with zero cloud dependencies beyond Kraken CLI
-- Uses Kraken CLI as the sole data source
-- Provides a deterministic decision engine (no LLM in the trading loop)
-- Works on desktop and mobile
-- Is fully open source and deployable by anyone
-
----
-
-
----
-
 ## 🎯 For Kraken Reviewers
-
-This section addresses what the Kraken Agent Zero jury evaluates.
 
 ### How we use Kraken CLI
 
-Every data point in the dashboard comes exclusively from Kraken CLI:
+Every data point comes exclusively from Kraken CLI:
 
 ```bash
 kraken ticker DOGUSD -o json        # price, bid, ask, volume, VWAP
 kraken orderbook DOGUSD -o json     # order book depth, wall detection
 kraken trades DOGUSD -o json        # recent trades, whale detection
-kraken ohlc DOGUSD --interval 60    # hourly candles for RSI + EMA
+kraken ohlc DOGUSD --interval 60    # hourly candles → RSI + EMA + BB
+kraken ohlc DOGUSD --interval 15    # 15m candles
+kraken ohlc DOGUSD --interval 240   # 4h candles
 kraken paper init                   # paper account initialization
 kraken paper buy/sell               # paper trade execution
 kraken paper status/history/balance # paper portfolio state
 ```
 
-No third-party market APIs. No external data sources. Kraken CLI is the sole data layer.
+No third-party market APIs. Kraken CLI is the sole data layer.
 
 ### What makes dog-intel different
 
 | Feature | Typical pattern | dog-intel |
 |---------|----------------|-----------|
 | LLM in decision loop | Yes | ❌ Deterministic Pack Index |
-| Data source | REST API / websocket | ✅ Kraken CLI exclusively |
+| Data source | REST API | ✅ Kraken CLI exclusively |
 | Dashboard | Local only | ✅ Live at dog-intel.onrender.com |
 | Mobile support | None | ✅ Fully responsive |
-| Candlestick chart | Rarely | ✅ 48h OHLC with EMA overlay |
-| RSI(14) + EMA crossover | Basic | ✅ From real hourly candles |
-| Whale detection | None | ✅ Volume-weighted ≥ 500K DOG |
-| Portfolio viewer | None | ✅ Real Kraken account integration |
+| Candlestick chart | Basic | ✅ BB + RSI + volume + whale markers |
+| Multi-timeframe | Single | ✅ 15m / 1h / 4h |
+| Whale detection | None | ✅ Volume-weighted, markers on chart |
+| Volume Impulse | None | ✅ vs SMA10, visual on bars |
+| BTC Network context | None | ✅ mempool.space integration |
+| Telegram alerts | None | ✅ WATCH_BUY/SELL, RSI extremes |
+| Export | None | ✅ JSON + CSV |
+| Dark/Light mode | None | ✅ Toggle in header |
 | Deploy | Local only | ✅ Docker + Render, zero config |
 
-### Evaluation criteria — our case
+### Evaluation criteria
 
 **Innovation & Originality**
-The Pack Index combines liquidity, RSI-based momentum, risk-inverted wall detection, and volume-weighted whale scoring into a single deterministic 0-100 signal. No LLM in the decision loop — pure math on live Kraken data.
+Pack Index combines liquidity, RSI momentum, risk-inverted wall detection, and volume-weighted whale scoring into a single deterministic 0-100 signal. Whale markers on the candlestick chart, Volume Impulse indicator, and Telegram alerts add layers not found in other submissions.
 
 **Technical Execution**
-Zero npm dependencies in the backend — Node.js native `http` module only. Kraken CLI called via `execSync` with `--api-secret-stdin` for security. Docker deploy with automatic Kraken CLI Linux binary installation.
+Zero npm dependencies in backend — Node.js native `http` module only. Secret passed via `--api-secret-stdin` (never exposed in process listing). Canvas-based chart with Bollinger Bands, RSI panel, volume bars, and whale markers — all computed client-side.
 
 **Kraken CLI Usage**
-8 distinct CLI commands used across 3 endpoints. OHLC data drives RSI(14) and EMA(9/21) calculation. Paper trading auto-initialized on server start.
+9 distinct CLI commands. OHLC drives RSI(14), EMA(9/21), Bollinger Bands, Volume Impulse, and whale marker matching. Paper trading auto-initialized on server start.
 
 **Clarity & Presentation**
-Live at **https://dog-intel.onrender.com** — open in any browser, no installation required. Mobile responsive. Works on iPhone on the same WiFi network via local IP.
+Live at **https://dog-intel.onrender.com**. No installation required. Works on desktop and mobile.
 
 **Practical Utility**
-Built for the $DOG Army: the community that lives on Kraken. Free, open source, runs locally or online with zero cloud dependencies beyond Kraken CLI. Real user feedback drove the feature set.
+Built for the $DOG Army. Free, open source. Telegram bot alerts the user when market conditions change — no need to watch the dashboard. JSON/CSV export for further analysis.
 
 ### Files to inspect
 
 | File | What it does |
 |------|-------------|
-| `server.js` | API server — zero dependencies, serves HTML + data |
-| `decision-engine.js` | Pack Index, RSI, EMA, whale scoring |
-| `dog-intel.js` | CLI intelligence report (terminal mode) |
-| `index.html` | Dashboard — candlestick chart, paper trading, portfolio viewer |
+| `server.js` | API server — zero dependencies, Telegram alerts, BTC context |
+| `decision-engine.js` | Pack Index, RSI, EMA, whale volume scoring |
+| `dog-intel.js` | CLI terminal report |
+| `index.html` | Dashboard — chart, paper trading, portfolio viewer |
 | `Dockerfile` | Docker deploy — installs Kraken CLI Linux binary |
+
+---
 
 ## Submission
 
-🐦 [X post](https://x.com/Ra1nBlack/status/2062637112088776836)
+🐦 [X post #1](https://x.com/Ra1nBlack/status/2058219061142589483)
+🐦 [X post #2](https://x.com/Ra1nBlack)
 
 ---
 
