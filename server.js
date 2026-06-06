@@ -185,6 +185,105 @@ async function fetchBTCContext() {
   }
 }
 
+
+// ─── TELEGRAM ALERTS ─────────────────────────────────────────────────────────
+
+const TG_TOKEN   = process.env.TG_TOKEN;
+const TG_CHAT_ID = process.env.TG_CHAT_ID;
+
+let lastAlertState = { decision: null, rsiAlert: null };
+
+async function sendTelegram(msg) {
+  if (!TG_TOKEN || !TG_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TG_CHAT_ID,
+        text: msg,
+        parse_mode: 'HTML',
+      }),
+    });
+    console.log('[TELEGRAM] Sent:', msg.slice(0, 60));
+  } catch(e) {
+    console.warn('[TELEGRAM] Failed:', e.message);
+  }
+}
+
+function checkAlerts(report) {
+  if (!report) return;
+  const { packIndex, price } = report;
+  const score = packIndex?.total;
+  const rsi   = packIndex?.indicators?.rsi;
+  const dec   = report.agent?.decision;
+
+  console.log(`[alerts] decision=${dec} score=${score} rsi=${rsi?.toFixed(1)} tg=${!!TG_TOKEN}`);
+
+  // Decision change alert
+  if (dec && dec !== lastAlertState.decision) {
+    if (dec === 'WATCH_BUY') {
+      sendTelegram(
+        `🟢 <b>WATCH BUY</b> — DOG•GO•TO•THE•MOON
+` +
+        `Pack Index: ${score}/100
+` +
+        `Price: $${price?.last?.toFixed(6)}
+` +
+        `RSI: ${rsi?.toFixed(1)}
+` +
+        `dog-intel.onrender.com`
+      );
+    } else if (dec === 'WATCH_SELL') {
+      sendTelegram(
+        `🔴 <b>WATCH SELL</b> — DOG•GO•TO•THE•MOON
+` +
+        `Pack Index: ${score}/100
+` +
+        `Price: $${price?.last?.toFixed(6)}
+` +
+        `RSI: ${rsi?.toFixed(1)}
+` +
+        `dog-intel.onrender.com`
+      );
+    } else if (dec === 'RISK_OFF') {
+      sendTelegram(
+        `⛔ <b>RISK OFF</b> — Spread anomalo
+` +
+        `Spread: ${report.orderbook?.spreadPct}%
+` +
+        `dog-intel.onrender.com`
+      );
+    }
+    lastAlertState.decision = dec;
+  }
+
+  // RSI alerts (one-shot, reset when crosses back)
+  if (rsi) {
+    if (rsi > 80 && lastAlertState.rsiAlert !== 'overbought') {
+      sendTelegram(
+        `⚠️ <b>RSI OVERBOUGHT</b> — RSI ${rsi.toFixed(1)}
+` +
+        `DOG/USD: $${price?.last?.toFixed(6)}
+` +
+        `dog-intel.onrender.com`
+      );
+      lastAlertState.rsiAlert = 'overbought';
+    } else if (rsi < 25 && lastAlertState.rsiAlert !== 'oversold') {
+      sendTelegram(
+        `💎 <b>RSI OVERSOLD</b> — RSI ${rsi.toFixed(1)}
+` +
+        `DOG/USD: $${price?.last?.toFixed(6)}
+` +
+        `dog-intel.onrender.com`
+      );
+      lastAlertState.rsiAlert = 'oversold';
+    } else if (rsi > 30 && rsi < 70) {
+      lastAlertState.rsiAlert = null; // reset
+    }
+  }
+}
+
 // ─── PAPER TRADING ───────────────────────────────────────────────────────────
 
 function fetchPaperStatus() {
@@ -363,6 +462,8 @@ async function buildReport() {
     ohlc: ohlc ? ohlc.slice(-48) : null,
     btc: await fetchBTCContext(),
   };
+  checkAlerts(report);
+  return report;
 }
 
 async function getCachedReport() {
