@@ -428,7 +428,10 @@ async function buildReport() {
   const ticker = fetchTicker();
   const book   = fetchOrderbook();
   const trades = fetchTrades();
-  if (!ticker || !book || !trades) return null;
+  if (!ticker || !book || !trades) {
+    console.warn("[fetch] failed: ticker=%s book=%s trades=%s", !!ticker, !!book, !!trades);
+    return null;
+  }
   const ohlc      = fetchOHLC();
   const paper     = fetchPaperStatus();
   const packIndex = computePackIndex(ticker, book, trades, ohlc);
@@ -460,7 +463,7 @@ async function buildReport() {
     signals, packIndex, agent,
     paper: paper || null,
     ohlc: ohlc ? ohlc.slice(-48) : null,
-    btc: await fetchBTCContext(),
+    btc: await fetchBTCContext().catch(e => { console.warn("[btc] failed:", e.message); return null; }),
   };
   checkAlerts(report);
   return report;
