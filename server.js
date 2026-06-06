@@ -654,6 +654,16 @@ let tgOffset = 0;
 
 async function pollTelegram() {
   if (!TG_TOKEN) return;
+  // On first run, skip old messages by getting latest offset
+  if (tgOffset === 0) {
+    try {
+      const init = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=-1`);
+      const data = await init.json();
+      if (data.ok && data.result.length > 0) {
+        tgOffset = data.result[data.result.length - 1].update_id + 1;
+      }
+    } catch(e) {}
+  }
   try {
     const res  = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${tgOffset}&timeout=30`);
     const data = await res.json();
