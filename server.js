@@ -425,6 +425,7 @@ function analyze(ticker, book, trades) {
 
 async function buildReport() {
   console.log("[fetch] pulling fresh data from Kraken CLI...");
+  try {
   const ticker = fetchTicker();
   const book   = fetchOrderbook();
   const trades = fetchTrades();
@@ -467,6 +468,10 @@ async function buildReport() {
   };
   checkAlerts(report);
   return report;
+  } catch(e) {
+    console.error("[fetch] buildReport crashed:", e.message, e.stack?.split("\n")[1]);
+    return null;
+  }
 }
 
 async function getCachedReport() {
