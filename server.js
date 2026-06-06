@@ -58,7 +58,9 @@ function cliAuth(cmd, apiKey, apiSecret) {
       throw new Error("Invalid API credentials");
     if (msg.includes("Permission denied") || msg.includes("EAPI:Invalid nonce"))
       throw new Error("API key missing required permissions");
-    throw new Error(msg.split("\n")[0]);
+    // Sanitize error — never log API keys
+    const clean = msg.split("\n")[0].replace(/--api-key\s+"[^"]*"/g, "--api-key [REDACTED]").replace(/--api-secret[^\s]*/g, "--api-secret [REDACTED]");
+    throw new Error(clean);
   }
 }
 
@@ -347,7 +349,7 @@ function fetchLivePortfolio(apiKey, apiSecret) {
         fee:    parseFloat(t.fee),
         time:   new Date(t.time * 1000).toISOString(),
       }));
-  } catch(e) { console.warn("[TRADE HISTORY]", e.message); }
+  } catch(e) { console.warn("[TRADE HISTORY] Failed (credentials redacted)"); }
 
   // 3. Open orders
   let openOrders = [];
@@ -364,7 +366,7 @@ function fetchLivePortfolio(apiKey, apiSecret) {
         price:  parseFloat(o.descr.price || 0),
         status: o.status,
       }));
-  } catch(e) { console.warn("[OPEN ORDERS]", e.message); }
+  } catch(e) { console.warn("[OPEN ORDERS] Failed (credentials redacted)"); }
 
   // 4. P&L calcolato sui trade storici
   let realizedPnl = 0;
@@ -675,7 +677,8 @@ async function pollTelegram() {
       const chatId = msg.chat.id.toString();
       const text   = msg.text?.trim();
       if (text === '/start' || text === '/start@dogintel_bot') {
-        // Register user and send welcome
+        // Only register and welcome if not already registered
+        if (userChatIds.has(chatId)) continue;
         userChatIds.add(chatId);
         await sendTelegram(
           `🐕 <b>DOG Intel alerts activated!</b>
