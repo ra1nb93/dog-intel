@@ -647,6 +647,80 @@ dog-intel.onrender.com`,
   return json(res, 404, { error: "Not found" });
 });
 
+
+// ─── TELEGRAM BOT POLLING ────────────────────────────────────────────────────
+
+let tgOffset = 0;
+
+async function pollTelegram() {
+  if (!TG_TOKEN) return;
+  try {
+    const res  = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${tgOffset}&timeout=30`);
+    const data = await res.json();
+    if (!data.ok) return;
+    for (const update of data.result) {
+      tgOffset = update.update_id + 1;
+      const msg    = update.message;
+      if (!msg) continue;
+      const chatId = msg.chat.id.toString();
+      const text   = msg.text?.trim();
+      if (text === '/start' || text === '/start@dogintel_bot') {
+        // Register user and send welcome
+        userChatIds.add(chatId);
+        await sendTelegram(
+          `🐕 <b>DOG Intel alerts activated!</b>
+
+` +
+          `Your Chat ID: <code>${chatId}</code>
+
+` +
+          `You will receive:
+` +
+          `🟢 WATCH BUY signals
+` +
+          `🔴 WATCH SELL signals
+` +
+          `⚠️ RSI OVERBOUGHT / 💎 OVERSOLD
+
+` +
+          `<a href="https://dog-intel.onrender.com">Open Dashboard</a>`,
+          chatId
+        );
+        console.log('[TELEGRAM] New user registered:', chatId);
+      } else if (text === '/stop') {
+        userChatIds.delete(chatId);
+        await sendTelegram('🔕 Alerts deactivated. Write /start to reactivate.', chatId);
+        console.log('[TELEGRAM] User unregistered:', chatId);
+      } else if (text === '/status') {
+        const report = await getCachedReport();
+        const dec    = report?.agent?.decision || 'N/A';
+        const score  = report?.packIndex?.total || 'N/A';
+        const price  = report?.price?.last?.toFixed(6) || 'N/A';
+        const rsi    = report?.packIndex?.indicators?.rsi?.toFixed(1) || 'N/A';
+        await sendTelegram(
+          `🐕 <b>DOG Intel Status</b>
+
+` +
+          `Price: $${price}
+` +
+          `Pack Index: ${score}/100
+` +
+          `Decision: ${dec}
+` +
+          `RSI: ${rsi}
+
+` +
+          `<a href="https://dog-intel.onrender.com">Open Dashboard</a>`,
+          chatId
+        );
+      }
+    }
+  } catch(e) {
+    console.warn('[TELEGRAM] Poll error:', e.message);
+  }
+  setTimeout(pollTelegram, 5000); // poll every 5s
+}
+
 server.listen(PORT, '0.0.0.0', () => {
   // Auto-inizializza paper trading se non esiste
   try {
@@ -661,6 +735,7 @@ server.listen(PORT, '0.0.0.0', () => {
     }
   }
 
+  if (TG_TOKEN) { pollTelegram(); console.log('[TELEGRAM] Bot polling started — @dogintel_bot'); }
   console.log(`\n🐕  DOG Intelligence + Trading Agent v4`);
   console.log(`    http://localhost:${PORT}/api/report`);
   console.log(`\n    PAPER TRADING`);

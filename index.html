@@ -602,25 +602,17 @@
         <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">@dogintel_bot</span>
       </div>
       <div class="card-body" style="padding:14px 16px">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:10px;line-height:1.6">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:12px;line-height:1.8">
           Get notified on <span style="color:var(--green)">WATCH BUY</span>, 
           <span style="color:var(--red)">WATCH SELL</span> and RSI extremes.
         </div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:10px">
-          1. Write <code style="color:var(--gold)">/start</code> to 
-          <a href="https://t.me/dogintel_bot" target="_blank" style="color:var(--gold)">@dogintel_bot</a> on Telegram<br>
-          2. Copy the Chat ID the bot sends you<br>
-          3. Paste it below and activate
+        <div style="background:var(--bg3);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;line-height:1.8">
+          1. Open Telegram and write <code style="color:var(--gold);font-size:12px">/start</code> to
+          <a href="https://t.me/dogintel_bot" target="_blank" 
+             style="color:var(--gold);text-decoration:none">@dogintel_bot</a><br>
+          2. The bot will confirm and activate your alerts automatically ✅<br>
+          <span style="color:var(--dim2);font-size:10px">Also try: /status for current market · /stop to unsubscribe</span>
         </div>
-        <div style="display:flex;gap:8px">
-          <input id="tgChatId" type="text" placeholder="Your Chat ID (e.g. 162041470)" 
-            style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--text);outline:none"/>
-          <button onclick="activateTelegram()" 
-            style="padding:8px 16px;border-radius:6px;font-family:var(--display);font-size:13px;cursor:pointer;background:rgba(61,220,132,0.12);color:var(--green);border:1px solid rgba(61,220,132,0.3)">
-            Activate
-          </button>
-        </div>
-        <div id="tgStatus" style="font-family:var(--mono);font-size:10px;margin-top:8px;display:none"></div>
       </div>
     </div>
 
