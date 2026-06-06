@@ -57,21 +57,33 @@ No LLM in the decision loop — pure deterministic math on live Kraken data.
 
 ## Telegram Alerts
 
-The server sends Telegram notifications when:
+Get real-time notifications directly on Telegram — no setup required for users.
 
-- 🟢 Decision changes to **WATCH_BUY**
-- 🔴 Decision changes to **WATCH_SELL**
-- ⛔ **RISK_OFF** triggered (spread anomaly)
-- ⚠️ **RSI > 80** (overbought)
-- 💎 **RSI < 25** (oversold)
+**To subscribe:**
+1. Open Telegram and write `/start` to [@dogintel_bot](https://t.me/dogintel_bot)
+2. The bot confirms and activates alerts automatically ✅
 
-To enable, set environment variables:
+**Bot commands:**
+| Command | Description |
+|---------|-------------|
+| `/start` | Subscribe to alerts |
+| `/status` | Get current market snapshot |
+| `/stop` | Unsubscribe |
+
+**Alert types:**
+- 🟢 **WATCH BUY** — Pack Index ≥ 65, RSI < 70
+- 🔴 **WATCH SELL** — Pack Index ≤ 35 or RSI > 80
+- ⛔ **RISK OFF** — Spread > 1% (illiquid market)
+- ⚠️ **RSI OVERBOUGHT** — RSI > 80
+- 💎 **RSI OVERSOLD** — RSI < 25
+
+Alerts have a 30-minute cooldown to prevent spam. Subscriptions are stored in memory and reset on server restart — write `/start` again to reactivate.
+
+**For self-hosting**, set environment variables:
 ```bash
-TG_TOKEN=your_bot_token
-TG_CHAT_ID=your_chat_id
+TG_TOKEN=your_bot_token   # from @BotFather
+TG_CHAT_ID=your_chat_id   # optional, your personal ID always receives alerts
 ```
-
-Create a bot via [@BotFather](https://t.me/BotFather) on Telegram.
 
 ---
 
@@ -251,7 +263,7 @@ No third-party market APIs. Kraken CLI is the sole data layer.
 | Whale detection | None | ✅ Volume-weighted, markers on chart |
 | Volume Impulse | None | ✅ vs SMA10, visual on bars |
 | BTC Network context | None | ✅ mempool.space integration |
-| Telegram alerts | None | ✅ WATCH_BUY/SELL, RSI extremes |
+| Telegram alerts | None | ✅ Public bot @dogintel_bot — /start to subscribe |
 | Export | None | ✅ JSON + CSV |
 | Dark/Light mode | None | ✅ Toggle in header |
 | Deploy | Local only | ✅ Docker + Render, zero config |
